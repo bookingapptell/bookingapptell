@@ -658,13 +658,6 @@ async function loadBranding() {
     preview.classList.remove('hidden');
   }
 
-  $('#fb-apikey').value = s.firebaseApiKey || '';
-  $('#fb-authdomain').value = s.firebaseAuthDomain || '';
-  $('#fb-projectid').value = s.firebaseProjectId || '';
-  $('#fb-storagebucket').value = s.firebaseStorageBucket || '';
-  $('#fb-sender').value = s.firebaseMessagingSenderId || '';
-  $('#fb-appid').value = s.firebaseAppId || '';
-  $('#fb-vapid').value = s.firebaseVapidKey || '';
 }
 
 $('#save-brand-btn').addEventListener('click', async () => {
@@ -683,13 +676,6 @@ $('#save-brand-btn').addEventListener('click', async () => {
     heroImageUrl: $('#brand-hero-input').value.trim(),
     calendarType: $('#calendar-type-input').value,
     backgroundUrl: $('#brand-bg-input').value.trim(),
-    firebaseApiKey: $('#fb-apikey').value.trim(),
-    firebaseAuthDomain: $('#fb-authdomain').value.trim(),
-    firebaseProjectId: $('#fb-projectid').value.trim(),
-    firebaseStorageBucket: $('#fb-storagebucket').value.trim(),
-    firebaseMessagingSenderId: $('#fb-sender').value.trim(),
-    firebaseAppId: $('#fb-appid').value.trim(),
-    firebaseVapidKey: $('#fb-vapid').value.trim(),
   });
   adminCalendarType = $('#calendar-type-input').value;
   if ($('#admin-date-scroller').children.length > 0) buildAdminDateScroller();
@@ -934,20 +920,6 @@ $('#broadcast-telegram-btn').addEventListener('click', async () => {
   btn.disabled = false;
   btn.textContent = 'ارسال به تلگرام همه';
   $('#broadcast-status').textContent = res.ok ? `به ${res.sent} نفر توی تلگرام فرستاده شد ✅` : (res.error || 'خطا در ارسال');
-});
-
-$('#broadcast-push-btn').addEventListener('click', async () => {
-  const text = $('#broadcast-text').value.trim();
-  if (!text) { toast('یه متن بنویس'); return; }
-  const btn = $('#broadcast-push-btn');
-  btn.disabled = true;
-  btn.textContent = 'در حال ارسال...';
-  const res = await api('adminBroadcastPush', { text });
-  btn.disabled = false;
-  btn.textContent = 'ارسال نوتیفیکیشن به همه';
-  $('#broadcast-status').textContent = res.ok
-    ? `نوتیف برای ${res.sent} نفر فرستاده شد${res.failed ? ` (${res.failed} تا ناموفق)` : ''} ✅`
-    : (res.error || 'خطا در ارسال');
 });
 
 // ----------------------------- init -----------------------------

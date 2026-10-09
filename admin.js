@@ -99,6 +99,7 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
     btn.classList.add('active');
     $('#tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'customers') loadCustomers();
   });
 });
 
@@ -641,6 +642,8 @@ async function loadBranding() {
   $('#brand-cancelhours-input').value = s.cancelHours || '';
   $('#brand-loyalty-every-input').value = s.loyaltyEvery || '';
   $('#brand-loyalty-percent-input').value = s.loyaltyPercent || '';
+  $('#brand-bday-percent-input').value = s.birthdayPercent || '';
+  $('#brand-bday-days-input').value = s.birthdayDays || '';
 
   $('#brand-logo-input').value = s.logoUrl || '';
   if (s.logoUrl) {
@@ -682,6 +685,8 @@ $('#save-brand-btn').addEventListener('click', async () => {
     cancelHours: $('#brand-cancelhours-input').value.trim(),
     loyaltyEvery: $('#brand-loyalty-every-input').value.trim(),
     loyaltyPercent: $('#brand-loyalty-percent-input').value.trim(),
+    birthdayPercent: $('#brand-bday-percent-input').value.trim(),
+    birthdayDays: $('#brand-bday-days-input').value.trim(),
     logoUrl: $('#brand-logo-input').value.trim(),
     heroImageUrl: $('#brand-hero-input').value.trim(),
     calendarType: $('#calendar-type-input').value,
@@ -930,6 +935,159 @@ $('#broadcast-telegram-btn').addEventListener('click', async () => {
   btn.disabled = false;
   btn.textContent = 'ارسال به تلگرام همه';
   $('#broadcast-status').textContent = res.ok ? `به ${res.sent} نفر توی تلگرام فرستاده شد ✅` : (res.error || 'خطا در ارسال');
+});
+
+
+// ----------------------------- مشتری‌ها -----------------------------
+const JALALI_MONTHS_FA = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+const GREG_MONTHS_FA = ['ژانویه', 'فوریه', 'مارس', 'آوریل', 'مه', 'ژوئن', 'ژوئیه', 'اوت', 'سپتامبر', 'اکتبر', 'نوامبر', 'دسامبر'];
+let CUSTOMERS = [];
+
+function escHtml(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function loadCustomers() {
+  const wrap = $('#cust-list');
+  wrap.innerHTML = '<div class="empty-note">در حال بارگذاری...</div>';
+  const res = await api('adminGetCustomers');
+  if (!res.ok) { wrap.innerHTML = '<div class="empty-note">خطا در دریافت</div>'; return; }
+  CUSTOMERS = res.customers;
+  renderCustomers();
+}
+
+function daysSince_(iso) {
+  if (!iso) return null;
+  const p = iso.split('-').map(Number);
+  return Math.floor((Date.now() - new Date(p[0], p[1] - 1, p[2]).getTime()) / 86400000);
+}
+
+function filteredCustomers_() {
+  const q = $('#cust-search').value.trim();
+  const f = $('#cust-filter').value;
+  return CUSTOMERS.filter((c) => {
+    if (q && c.name.indexOf(q) === -1 && c.phone.indexOf(q) === -1) return false;
+    if (f === 'bday') return c.daysToBirthday !== null && c.daysToBirthday <= 7;
+    if (f === 'inactive') { const d = daysSince_(c.lastDate); return d !== null && d > 60; }
+    if (f === 'never') return c.count === 0;
+    if (f === 'vip') return c.tag === 'VIP';
+    return true;
+  });
+}
+
+function renderCustomers() {
+  const list = filteredCustomers_();
+  const wrap = $('#cust-list');
+  $('#cust-count').textContent = list.length + ' نفر از ' + CUSTOMERS.length;
+  wrap.innerHTML = '';
+  if (list.length === 0) { wrap.innerHTML = '<div class="empty-note">مشتری‌ای پیدا نشد</div>'; return; }
+  list.slice(0, 100).forEach((c) => {
+    const item = el('div', 'list-item');
+    const bd = c.birthdayDisplay ? ` — 🎂 ${escHtml(c.birthdayDisplay)}` : '';
+    const last = c.lastDate ? `آخرین نوبت: ${escHtml(c.lastDate)}` : 'هنوز نوبتی نگرفته';
+    item.innerHTML = `
+      <div class="row">
+        <strong>${escHtml(c.name || 'بدون نام')}${c.tag ? ' · ' + escHtml(c.tag) : ''}</strong>
+        <span dir="ltr" style="font-size:12.5px; color:var(--muted);">${escHtml(c.phone)}</span>
+      </div>
+      <div style="font-size:12.5px; color:var(--muted); margin-top:4px;">
+        ${c.count} نوبت · ${Number(c.total).toLocaleString('fa-IR')} تومان${bd}<br>${last}
+      </div>
+      <div class="cust-edit hidden" style="margin-top:12px;"></div>`;
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.cust-edit')) return;
+      const box = item.querySelector('.cust-edit');
+      if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+      document.querySelectorAll('.cust-edit').forEach((b) => b.classList.add('hidden'));
+      buildCustomerEditor_(box, c);
+      box.classList.remove('hidden');
+    });
+    wrap.appendChild(item);
+  });
+  if (list.length > 100) {
+    const more = el('div', 'empty-note');
+    more.textContent = 'فقط ۱۰۰ نفر اول نمایش داده شد؛ با جستجو محدودتر کن.';
+    wrap.appendChild(more);
+  }
+}
+
+function buildCustomerEditor_(box, c) {
+  const stored = /^([jg]):(\d{2})-(\d{2})$/.exec(c.birthday || '');
+  const cal = stored ? stored[1] : (adminCalendarType === 'gregorian' ? 'g' : 'j');
+  const names = cal === 'j' ? JALALI_MONTHS_FA : GREG_MONTHS_FA;
+  const selStyle = "border:2px solid var(--line); border-radius:10px; padding:10px; font-family:'Vazirmatn'; background:var(--paper);";
+  const monthOpts = '<option value="">ماه</option>' + names.map((n, i) => `<option value="${i + 1}" ${stored && Number(stored[2]) === i + 1 ? 'selected' : ''}>${n}</option>`).join('');
+  let dayOpts = '<option value="">روز</option>';
+  for (let d = 1; d <= 31; d++) dayOpts += `<option value="${d}" ${stored && Number(stored[3]) === d ? 'selected' : ''}>${d}</option>`;
+  const tags = ['', 'VIP', 'عادی', 'ناراضی'];
+  box.innerHTML = `
+    <div class="field"><label>تاریخ تولد (${cal === 'j' ? 'شمسی' : 'میلادی'})</label>
+      <div style="display:flex; gap:8px;">
+        <select class="c-month" style="${selStyle} flex:1;">${monthOpts}</select>
+        <select class="c-day" style="${selStyle} flex:1;">${dayOpts}</select>
+      </div>
+    </div>
+    <div class="field"><label>برچسب</label>
+      <select class="c-tag" style="${selStyle} width:100%;">${tags.map((t) => `<option value="${t}" ${c.tag === t ? 'selected' : ''}>${t || 'بدون برچسب'}</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>یادداشت (فقط برای خودت)</label>
+      <textarea class="c-note" rows="2" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:10px; font-family:'Vazirmatn';">${escHtml(c.note)}</textarea>
+    </div>
+    <label style="display:flex; gap:8px; align-items:center; font-size:12.5px; margin-bottom:10px;"><input type="checkbox" class="c-reset"> هدیه‌ی تولد امسال دوباره فعال شود</label>
+    <button class="btn btn-block c-save">ذخیره</button>
+    <div class="field" style="margin-top:14px;"><label>پیام تلگرام به همین مشتری</label>
+      <textarea class="c-msg" rows="2" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:10px; font-family:'Vazirmatn';"></textarea>
+    </div>
+    <button class="btn btn-block btn-ghost c-send">ارسال پیام</button>
+    <div class="c-status" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>`;
+  const status = box.querySelector('.c-status');
+  box.querySelector('.c-save').addEventListener('click', async (e) => {
+    const m = box.querySelector('.c-month').value;
+    const d = box.querySelector('.c-day').value;
+    if ((m && !d) || (!m && d)) { status.textContent = 'ماه و روز هر دو باید انتخاب بشن.'; return; }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const birthday = m ? `${cal}:${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '';
+    const res = await api('adminSaveCustomer', {
+      phone: c.phone, birthday, tag: box.querySelector('.c-tag').value,
+      note: box.querySelector('.c-note').value, resetGift: box.querySelector('.c-reset').checked ? '1' : '0'
+    });
+    btn.disabled = false;
+    status.textContent = res.ok ? 'ذخیره شد ✅' : (res.error || 'خطا');
+    if (res.ok) { await loadCustomers(); }
+  });
+  box.querySelector('.c-send').addEventListener('click', async (e) => {
+    const text = box.querySelector('.c-msg').value.trim();
+    if (!text) { status.textContent = 'متن پیام رو بنویس.'; return; }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const res = await api('adminMessageCustomers', { phones: c.phone, text });
+    btn.disabled = false;
+    status.textContent = res.ok && res.sent ? 'پیام فرستاده شد ✅' : (res.error || 'نشد؛ احتمالاً مشتری بات رو بلاک کرده');
+  });
+}
+
+$('#cust-search').addEventListener('input', renderCustomers);
+$('#cust-filter').addEventListener('change', renderCustomers);
+
+$('#cust-bulk-btn').addEventListener('click', async () => {
+  const list = filteredCustomers_();
+  const text = $('#cust-bulk-text').value.trim();
+  const status = $('#cust-bulk-status');
+  if (!text) { status.textContent = 'متن پیام رو بنویس.'; return; }
+  if (list.length === 0) { status.textContent = 'فهرست خالیه.'; return; }
+  if (!confirm('این پیام برای ' + list.length + ' نفر فرستاده میشه. مطمئنی؟')) return;
+  const btn = $('#cust-bulk-btn');
+  btn.disabled = true;
+  let sent = 0;
+  for (let i = 0; i < list.length; i += 30) {
+    const chunk = list.slice(i, i + 30).map((c) => c.phone).join(',');
+    status.textContent = 'در حال ارسال... ' + Math.min(i + 30, list.length) + ' از ' + list.length;
+    const res = await api('adminMessageCustomers', { phones: chunk, text });
+    if (res.ok) sent += res.sent;
+  }
+  btn.disabled = false;
+  status.textContent = 'به ' + sent + ' نفر فرستاده شد ✅';
 });
 
 // ----------------------------- init -----------------------------

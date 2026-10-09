@@ -1,31 +1,3 @@
-// =====================================================================
-// نوتیفیکیشن واقعی (Firebase) — این چندخط باید همینجا (توی همون sw.js اصلی)
-// باشه، نه یه سرویس‌ورکر جدا، وگرنه با هم روی کل سایت تداخل پیدا می‌کنن.
-// مقادیر زیر رو با همونایی که توی پنل مدیریت «برندینگ → تنظیمات Firebase»
-// گذاشتی جایگزین کن (فقط یه‌بار لازمه).
-// =====================================================================
-importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js');
-
-try {
-  firebase.initializeApp({
-    apiKey: 'AIzaSyDv6K9Nub6UfUxsY9LGf5ktzR0bSGhlaGw',
-    authDomain: 'mojeh-booking.firebaseapp.com',
-    projectId: 'mojeh-booking',
-    storageBucket: 'mojeh-booking.firebasestorage.app',
-    messagingSenderId: '301215261568',
-    appId: '1:301215261568:web:a09cc6e19bcb5506ab9765',
-  });
-  const messaging = firebase.messaging();
-  messaging.onBackgroundMessage((payload) => {
-    const title = payload.notification?.title || 'استودیو زیبایی';
-    const body = payload.notification?.body || '';
-    self.registration.showNotification(title, { body, icon: 'icon-192.png' });
-  });
-} catch (e) {
-  // اگه هنوز مقادیر بالا رو پر نکردی، این بخش ساکت رد میشه و بقیه‌ی سایت (کش/آفلاین) عادی کار می‌کنه
-}
-
 const CACHE = 'lash-booking-v1';
 const SHELL = ['index.html', 'result.html', 'style.css', 'app.js', 'manifest.json'];
 

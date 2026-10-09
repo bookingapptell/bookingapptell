@@ -636,6 +636,11 @@ async function loadBranding() {
   $('#brand-instagram-input').value = s.instagramUrl || '';
   $('#brand-phone-input').value = s.phoneNumber || '';
   $('#brand-telegram-bot-input').value = s.telegramBotUsername || '';
+  $('#brand-address-input').value = s.address || '';
+  $('#brand-map-input').value = s.mapUrl || '';
+  $('#brand-cancelhours-input').value = s.cancelHours || '';
+  $('#brand-loyalty-every-input').value = s.loyaltyEvery || '';
+  $('#brand-loyalty-percent-input').value = s.loyaltyPercent || '';
 
   $('#brand-logo-input').value = s.logoUrl || '';
   if (s.logoUrl) {
@@ -672,6 +677,11 @@ $('#save-brand-btn').addEventListener('click', async () => {
     instagramUrl: $('#brand-instagram-input').value.trim(),
     phoneNumber: $('#brand-phone-input').value.trim(),
     telegramBotUsername: $('#brand-telegram-bot-input').value.trim().replace(/^@/, ''),
+    address: $('#brand-address-input').value.trim(),
+    mapUrl: $('#brand-map-input').value.trim(),
+    cancelHours: $('#brand-cancelhours-input').value.trim(),
+    loyaltyEvery: $('#brand-loyalty-every-input').value.trim(),
+    loyaltyPercent: $('#brand-loyalty-percent-input').value.trim(),
     logoUrl: $('#brand-logo-input').value.trim(),
     heroImageUrl: $('#brand-hero-input').value.trim(),
     calendarType: $('#calendar-type-input').value,

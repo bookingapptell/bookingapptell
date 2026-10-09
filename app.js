@@ -323,7 +323,6 @@ async function loadBranding() {
 
     if (data.calendarType) calendarType = data.calendarType;
     if (data.telegramBotUsername) telegramBotUsername = data.telegramBotUsername;
-    if (data.firebaseApiKey) firebaseConfig = data;
 
     if (data.brandName) {
       $('#brand-name').textContent = data.brandName;
@@ -420,8 +419,6 @@ $('#cust-resend-btn').addEventListener('click', async () => {
   toast(res.ok ? 'کد دوباره فرستاده شد' : (res.error || 'ارسال ناموفق بود'));
 });
 
-let firebaseConfig = null;
-
 function enterApp_() {
   $('#login-gate').classList.add('hidden');
   $('#app-content').classList.remove('hidden');
@@ -429,39 +426,6 @@ function enterApp_() {
   if (phoneField) phoneField.value = customerPhone;
   $('#cust-username-badge').textContent = customerPhone;
   loadServices();
-  setupPushNotifications_();
-}
-
-// نوتیفیکیشن واقعی گوشی رو فعال می‌کنه (اختیاریه، اگه نشد مشکلی برای بقیه‌ی اپ پیش نمیاد)
-async function setupPushNotifications_() {
-  try {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
-    if (!firebaseConfig || !firebaseConfig.firebaseApiKey) return; // هنوز توی برندینگ تنظیم نشده
-
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
-
-    const swReg = await navigator.serviceWorker.register('sw.js', { scope: './' });
-
-    firebase.initializeApp({
-      apiKey: firebaseConfig.firebaseApiKey,
-      authDomain: firebaseConfig.firebaseAuthDomain,
-      projectId: firebaseConfig.firebaseProjectId,
-      storageBucket: firebaseConfig.firebaseStorageBucket,
-      messagingSenderId: firebaseConfig.firebaseMessagingSenderId,
-      appId: firebaseConfig.firebaseAppId,
-    });
-    const messaging = firebase.messaging();
-    const token = await messaging.getToken({
-      vapidKey: firebaseConfig.firebaseVapidKey,
-      serviceWorkerRegistration: swReg,
-    });
-    if (token) {
-      await api('registerPushToken', { phone: customerPhone, token });
-    }
-  } catch (e) {
-    // نوتیف اختیاریه؛ اگه هر جای این مسیر شکست خورد، رزرو باید بدون مشکل ادامه پیدا کنه
-  }
 }
 
 $('#cust-logout-btn').addEventListener('click', () => {

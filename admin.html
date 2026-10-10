@@ -173,6 +173,26 @@
         <div class="date-scroller" id="admin-date-scroller"></div>
         <div class="slot-grid" id="admin-slot-grid" style="margin-top:14px;"></div>
         <button class="btn btn-block" id="save-day-btn" style="margin-top:14px;" disabled>یه روز رو از بالا انتخاب کن</button>
+
+        <div class="section-title" style="margin-top:30px;">🏖 مرخصی / تعطیلی</div>
+        <p style="font-size:12.5px; color:var(--muted); margin-top:-6px; margin-bottom:12px;">
+          یه روز رو انتخاب کن. اگه ساعت شروع و پایان نزنی، کل اون روز بسته میشه. مشتری‌هایی که اون روز نوبت دارن خودکار توی بات پیام می‌گیرن.
+        </p>
+        <div class="date-scroller" id="off-date-scroller"></div>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <div class="field" style="flex:1; margin:0;"><label>از ساعت (اختیاری)</label><input id="off-from" type="time"></div>
+          <div class="field" style="flex:1; margin:0;"><label>تا ساعت</label><input id="off-to" type="time"></div>
+        </div>
+        <div class="field" style="margin-top:10px;"><label>توضیح (اختیاری، فقط برای خودت)</label><input id="off-note" placeholder="مثلاً مسافرت"></div>
+        <button class="btn btn-block" id="off-add-btn" disabled>یه روز رو از بالا انتخاب کن</button>
+        <div id="off-list" style="margin-top:14px;"></div>
+
+        <div class="section-title" style="margin-top:30px;">💾 پشتیبان‌گیری</div>
+        <p style="font-size:12.5px; color:var(--muted); margin-top:-6px; margin-bottom:12px;">
+          هر هفته خودکار یه کپی از همه‌ی اطلاعات توی Google Drive (پوشه‌ی Booking Backups) ذخیره میشه. اینجا می‌تونی همین الان هم بگیری.
+        </p>
+        <button class="btn btn-block btn-ghost" id="backup-btn">پشتیبان‌گیری همین حالا</button>
+        <div id="backup-status" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>
       </div>
 
       <div class="tab-panel" id="tab-brand">
@@ -207,6 +227,10 @@
         <div class="field"><label>درصد تخفیف وفاداری (مثلاً ۱۰)</label><input id="brand-loyalty-percent-input" placeholder="10" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
         <div class="field"><label>درصد تخفیف تولد (۰ یعنی خاموش)</label><input id="brand-bday-percent-input" placeholder="15" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
         <div class="field"><label>تخفیف تولد چند روز قبل و بعد از تولد معتبر باشد؟ (پیش‌فرض ۳)</label><input id="brand-bday-days-input" placeholder="3" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+        <div class="field"><label>بیعانه: چند درصد از مبلغ آنلاین پرداخت شود؟ (۰ یعنی پرداخت کامل)</label><input id="brand-deposit-input" placeholder="30" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+        <div class="field"><label>تخفیف دعوت دوست (درصد، ۰ یعنی خاموش)</label><input id="brand-referral-input" placeholder="10" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+        <div class="field"><label>یادآوری ترمیم: چند روز بعد از نوبت پیام برود؟ (۰ یعنی خاموش، مثلاً ۱۴)</label><input id="brand-refill-input" placeholder="14" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+        <div class="field"><label>بعد از چند بار «نیامدن»، رزرو آنلاین مشتری بسته شود؟ (۰ یعنی هیچ‌وقت)</label><input id="brand-noshow-input" placeholder="2" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
         <div class="field">
           <label>لوگو / عکس پروفایل</label>
           <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">

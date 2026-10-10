@@ -171,6 +171,7 @@ function toLocalDateStr_(d) {
 
 // نوع تقویمی که از برندینگ میاد: 'jalali' یا 'gregorian'
 let calendarType = 'jalali';
+let depositPercent = 0;
 
 // برای یه شیء Date، عدد روزی که باید روی چیپ نشون داده بشه رو برمی‌گردونه
 function dayNumberFor_(d) {
@@ -251,6 +252,10 @@ function updatePayBar() {
   $('#total-amount').innerHTML = disc
     ? `<s style="opacity:.55;font-size:.8em">${toman(state.selectedService.price)}</s> ${toman(finalPrice)}<br><small>🎁 ${disc.label} ${disc.percent}٪</small>`
     : toman(state.selectedService.price);
+  if (!isPayInPerson && depositPercent > 0 && depositPercent < 100) {
+    const dep = Math.round(finalPrice * depositPercent / 100);
+    $('#total-amount').innerHTML += `<br><small>بیعانه ${toman(dep)} (${depositPercent}٪) — باقی‌مانده حضوری</small>`;
+  }
   document.querySelector('.pay-bar .total-label').textContent = isPayInPerson ? 'پرداخت حضوری' : 'مبلغ قابل پرداخت';
   $('#submit-btn').textContent = isPayInPerson ? 'ثبت نوبت' : 'پرداخت و ثبت نوبت';
 }
@@ -326,6 +331,7 @@ async function loadBranding() {
     if (!data.ok) return;
 
     if (data.calendarType) calendarType = data.calendarType;
+    depositPercent = Number(data.depositPercent) || 0;
     if (data.telegramBotUsername) telegramBotUsername = data.telegramBotUsername;
 
     if (data.brandName) {

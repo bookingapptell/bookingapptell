@@ -978,7 +978,7 @@ function filteredCustomers_() {
   const q = $('#cust-search').value.trim();
   const f = $('#cust-filter').value;
   return CUSTOMERS.filter((c) => {
-    if (q && c.name.indexOf(q) === -1 && c.phone.indexOf(q) === -1) return false;
+    if (q && c.name.indexOf(q) === -1 && String(c.tgName || '').indexOf(q) === -1 && c.phone.indexOf(q) === -1) return false;
     if (f === 'bday') return c.daysToBirthday !== null && c.daysToBirthday <= 7;
     if (f === 'inactive') { const d = daysSince_(c.lastDate); return d !== null && d > 60; }
     if (f === 'never') return c.count === 0;
@@ -999,7 +999,7 @@ function renderCustomers() {
     const last = c.lastDate ? `آخرین نوبت: ${escHtml(c.lastDate)}` : 'هنوز نوبتی نگرفته';
     item.innerHTML = `
       <div class="row">
-        <strong>${escHtml(c.name || 'بدون نام')}${c.tag ? ' · ' + escHtml(c.tag) : ''}</strong>
+        <strong>${escHtml(c.name || 'بدون نام')}${c.nameLocked ? ' 🔒' : ''}${c.tag ? ' · ' + escHtml(c.tag) : ''}${c.nameSet ? '' : ' ⚠️'}</strong>
         <span dir="ltr" style="font-size:12.5px; color:var(--muted);">${escHtml(c.phone)}</span>
       </div>
       <div style="font-size:12.5px; color:var(--muted); margin-top:4px;">
@@ -1033,6 +1033,11 @@ function buildCustomerEditor_(box, c) {
   for (let d = 1; d <= 31; d++) dayOpts += `<option value="${d}" ${stored && Number(stored[3]) === d ? 'selected' : ''}>${d}</option>`;
   const tags = ['', 'VIP', 'عادی', 'ناراضی'];
   box.innerHTML = `
+    <div class="field"><label>نام و نام خانوادگی ${c.nameSet ? '(قفل‌شده 🔒)' : '(هنوز ثبت نشده)'}</label>
+      <input class="c-fullname" value="${escHtml(c.nameSet ? c.name : '')}" placeholder="${escHtml(c.tgName ? 'اسم تلگرام: ' + c.tgName : 'مثلاً سارا احمدی')}">
+      <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">با ذخیره، اسم قفل میشه و مشتری نمی‌تونه عوضش کنه؛ اسم نوبت‌های قبلی هم اصلاح میشه.</div>
+      ${c.nameSet ? '<label style="display:flex; gap:8px; align-items:center; font-size:12.5px; margin-top:8px;"><input type="checkbox" class="c-resetname"> قفل نام باز شود (مشتری دوباره اسمش رو وارد کنه)</label>' : ''}
+    </div>
     <div class="field"><label>تاریخ تولد (${cal === 'j' ? 'شمسی' : 'میلادی'})</label>
       <div style="display:flex; gap:8px;">
         <select class="c-month" style="${selStyle} flex:1;">${monthOpts}</select>
@@ -1060,10 +1065,15 @@ function buildCustomerEditor_(box, c) {
     const btn = e.currentTarget;
     btn.disabled = true;
     const birthday = m ? `${cal}:${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '';
-    const res = await api('adminSaveCustomer', {
+    const payload = {
       phone: c.phone, birthday, tag: box.querySelector('.c-tag').value,
       note: box.querySelector('.c-note').value, resetGift: box.querySelector('.c-reset').checked ? '1' : '0'
-    });
+    };
+    const fullName = box.querySelector('.c-fullname').value.trim();
+    if (fullName) payload.fullName = fullName;
+    const rn = box.querySelector('.c-resetname');
+    if (rn && rn.checked) { payload.resetName = '1'; delete payload.fullName; }
+    const res = await api('adminSaveCustomer', payload);
     btn.disabled = false;
     status.textContent = res.ok ? 'ذخیره شد ✅' : (res.error || 'خطا');
     if (res.ok) { await loadCustomers(); }

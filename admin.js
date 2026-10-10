@@ -1010,6 +1010,7 @@ function filteredCustomers_() {
     if (f === 'inactive') { const d = daysSince_(c.lastDate); return d !== null && d > 60; }
     if (f === 'never') return c.count === 0;
     if (f === 'vip') return c.tag === 'VIP';
+    if (f === 'blocked') return !!c.blocked;
     return true;
   });
 }
@@ -1026,7 +1027,7 @@ function renderCustomers() {
     const last = c.lastDate ? `آخرین نوبت: ${escHtml(c.lastDate)}` : 'هنوز نوبتی نگرفته';
     item.innerHTML = `
       <div class="row">
-        <strong>${escHtml(c.name || 'بدون نام')}${c.nameLocked ? ' 🔒' : ''}${c.tag ? ' · ' + escHtml(c.tag) : ''}${c.nameSet ? '' : ' ⚠️'}</strong>
+        <strong>${escHtml(c.name || 'بدون نام')}${c.nameLocked ? ' 🔒' : ''}${c.tag ? ' · ' + escHtml(c.tag) : ''}${c.nameSet ? '' : ' ⚠️'}${c.blocked ? ' 🚫 مسدود' : ''}</strong>
         <span dir="ltr" style="font-size:12.5px; color:var(--muted);">${escHtml(c.phone)}</span>
       </div>
       <div style="font-size:12.5px; color:var(--muted); margin-top:4px;">
@@ -1074,6 +1075,10 @@ function buildCustomerEditor_(box, c) {
     <div class="field"><label>برچسب</label>
       <select class="c-tag" style="${selStyle} width:100%;">${tags.map((t) => `<option value="${t}" ${c.tag === t ? 'selected' : ''}>${t || 'بدون برچسب'}</option>`).join('')}</select>
     </div>
+    <div class="field" style="border:1.5px solid ${c.blocked ? '#b3261e' : 'var(--line)'}; border-radius:12px; padding:10px;">
+      <label style="display:flex; gap:8px; align-items:center; font-size:13px; color:#b3261e;"><input type="checkbox" class="c-block" ${c.blocked ? 'checked' : ''}> 🚫 این مشتری مسدود باشد (نتواند وارد بات/سایت شود و نوبت بگیرد)</label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:12.5px; margin-top:8px;"><input type="checkbox" class="c-cancelfuture"> هنگام مسدود کردن، نوبت‌های آینده‌اش هم لغو شود</label>
+    </div>
     <div class="field"><label>یادداشت (فقط برای خودت)</label>
       <textarea class="c-note" rows="2" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:10px; font-family:'Vazirmatn';">${escHtml(c.note)}</textarea>
     </div>
@@ -1098,6 +1103,8 @@ function buildCustomerEditor_(box, c) {
       phone: c.phone, birthday, tag: box.querySelector('.c-tag').value,
       note: box.querySelector('.c-note').value, resetGift: box.querySelector('.c-reset').checked ? '1' : '0'
     };
+    payload.blocked = box.querySelector('.c-block').checked ? '1' : '0';
+    if (payload.blocked === '1' && !c.blocked && box.querySelector('.c-cancelfuture').checked) payload.cancelFuture = '1';
     const rns = box.querySelector('.c-resetns');
     if (rns && rns.checked) payload.resetNoShow = '1';
     const fullName = box.querySelector('.c-fullname').value.trim();

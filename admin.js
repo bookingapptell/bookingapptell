@@ -22,7 +22,7 @@ async function api(action, params = {}) {
 }
 
 const DOW_LABELS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'];
-const STATUS_FA = { paid: 'پرداخت‌شده', confirmed: 'تایید شده (حضوری)', pending: 'در انتظار پرداخت', cancelled: 'لغوشده', failed: 'ناموفق' };
+const STATUS_FA = { paid: 'پرداخت‌شده', confirmed: 'تایید شده (حضوری)', pending: 'در انتظار پرداخت', cancelled: 'لغوشده', failed: 'ناموفق', noshow: 'نیامد 🚫' };
 let CATEGORIES = [];
 
 // ----------------------------- ورود -----------------------------
@@ -101,6 +101,7 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     $('#tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'customers') loadCustomers();
     if (btn.dataset.tab === 'stats') loadStats();
+    if (btn.dataset.tab === 'settings') loadTimeOff();
   });
 });
 
@@ -125,7 +126,23 @@ async function loadBookings() {
       </div>
       <div class="actions"></div>
     `;
-    if (b.status !== 'cancelled') {
+    if (Number(b.deposit) > 0) {
+      const dl = document.createElement('div');
+      dl.style.cssText = 'font-size:12.5px; color:var(--muted); margin-top:4px;';
+      dl.textContent = `بیعانه: ${Number(b.deposit).toLocaleString('fa-IR')} تومان — باقی‌مانده حضوری: ${(Number(b.price) - Number(b.deposit)).toLocaleString('fa-IR')} تومان`;
+      item.insertBefore(dl, item.querySelector('.actions'));
+    }
+    if ((b.status === 'paid' || b.status === 'confirmed') && `${b.date} ${b.time}` < new Date().toLocaleString('sv-SE').slice(0, 16)) {
+      const nsBtn = el('button', 'small-btn danger', 'نیامد 🚫');
+      nsBtn.addEventListener('click', async () => {
+        if (!confirm('این مشتری نیامده؟ این مورد برای محدودیت رزرو حساب میشه.')) return;
+        const r = await api('adminMarkNoShow', { id: b.id });
+        if (!r.ok) { toast(r.error || 'خطا'); return; }
+        loadBookings();
+      });
+      item.querySelector('.actions').appendChild(nsBtn);
+    }
+    if (b.status !== 'cancelled' && b.status !== 'noshow') {
       const cancelBtn = el('button', 'small-btn danger', 'لغو نوبت');
       cancelBtn.addEventListener('click', async () => {
         if (!confirm('لغو این نوبت؟')) return;
@@ -646,6 +663,10 @@ async function loadBranding() {
   $('#brand-loyalty-percent-input').value = s.loyaltyPercent || '';
   $('#brand-bday-percent-input').value = s.birthdayPercent || '';
   $('#brand-bday-days-input').value = s.birthdayDays || '';
+  $('#brand-deposit-input').value = s.depositPercent || '';
+  $('#brand-referral-input').value = s.referralPercent || '';
+  $('#brand-refill-input').value = s.refillDays || '';
+  $('#brand-noshow-input').value = s.noShowLimit || '';
 
   $('#brand-logo-input').value = s.logoUrl || '';
   if (s.logoUrl) {
@@ -689,6 +710,10 @@ $('#save-brand-btn').addEventListener('click', async () => {
     loyaltyPercent: $('#brand-loyalty-percent-input').value.trim(),
     birthdayPercent: $('#brand-bday-percent-input').value.trim(),
     birthdayDays: $('#brand-bday-days-input').value.trim(),
+    depositPercent: $('#brand-deposit-input').value.trim(),
+    referralPercent: $('#brand-referral-input').value.trim(),
+    refillDays: $('#brand-refill-input').value.trim(),
+    noShowLimit: $('#brand-noshow-input').value.trim(),
     logoUrl: $('#brand-logo-input').value.trim(),
     heroImageUrl: $('#brand-hero-input').value.trim(),
     calendarType: $('#calendar-type-input').value,
@@ -1052,6 +1077,8 @@ function buildCustomerEditor_(box, c) {
     <div class="field"><label>یادداشت (فقط برای خودت)</label>
       <textarea class="c-note" rows="2" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:10px; font-family:'Vazirmatn';">${escHtml(c.note)}</textarea>
     </div>
+    <div style="font-size:12.5px; color:var(--muted); margin-bottom:8px;">🤝 دوست دعوت‌شده: ${c.invited || 0} نفر ${c.referredBy ? '— خودش با دعوت ' + escHtml(c.referredBy) + ' اومده' : ''}</div>
+    ${c.noShow ? `<label style="display:flex; gap:8px; align-items:center; font-size:12.5px; margin-bottom:10px; color:#b3261e;"><input type="checkbox" class="c-resetns"> ${c.noShow} بار نیومده؛ شمارنده‌ی «نیامدن» صفر شود (رزرو دوباره باز میشه)</label>` : ''}
     <label style="display:flex; gap:8px; align-items:center; font-size:12.5px; margin-bottom:10px;"><input type="checkbox" class="c-reset"> هدیه‌ی تولد امسال دوباره فعال شود</label>
     <button class="btn btn-block c-save">ذخیره</button>
     <div class="field" style="margin-top:14px;"><label>پیام تلگرام به همین مشتری</label>
@@ -1071,6 +1098,8 @@ function buildCustomerEditor_(box, c) {
       phone: c.phone, birthday, tag: box.querySelector('.c-tag').value,
       note: box.querySelector('.c-note').value, resetGift: box.querySelector('.c-reset').checked ? '1' : '0'
     };
+    const rns = box.querySelector('.c-resetns');
+    if (rns && rns.checked) payload.resetNoShow = '1';
     const fullName = box.querySelector('.c-fullname').value.trim();
     if (fullName) payload.fullName = fullName;
     const rn = box.querySelector('.c-resetname');
@@ -1147,7 +1176,7 @@ async function loadStats() {
       kpi('درآمد این ماه', T(m.income), delta(m.income, p.income)) +
       kpi('تعداد نوبت', fa(m.count), delta(m.count, p.count)) +
       kpi('میانگین هر نوبت', T(m.avg), '') +
-      kpi('مشتری جدید', fa(m.newCustomers), 'لغوشده: ' + fa(m.cancelled)) +
+      kpi('مشتری جدید', fa(m.newCustomers), 'لغوشده: ' + fa(m.cancelled) + ' — نیامده: ' + fa(m.noShow)) +
       kpi('نوبت‌های پیش‌رو', fa(r.upcoming.count), 'درآمد پیش‌بینی: ' + T(r.upcoming.income)) +
       kpi('کل مشتری‌ها', fa(r.totalCustomers), '') +
     `</div>` +
@@ -1158,3 +1187,70 @@ async function loadStats() {
     card('پرطرفدارترین ساعت‌ها', r.hours.length ? bars(r.hours, (i) => i.count, fa) : 'داده‌ای نیست') +
     card('مشتری‌های برتر', r.topCustomers.length ? r.topCustomers.map((c, i) => `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span>${fa(i + 1)}. ${escHtml(c.name)} (${fa(c.count)} نوبت)</span><span>${T(c.total)}</span></div>`).join('') : 'داده‌ای نیست');
 }
+
+
+// ----------------------------- مرخصی و پشتیبان‌گیری -----------------------------
+let offSelectedDate = '';
+function buildOffScroller() {
+  const wrap = $('#off-date-scroller');
+  if (!wrap || wrap.children.length) return;
+  const today = new Date();
+  for (let i = 0; i < 60; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const iso = toLocalDateStr_(d);
+    const chip = el('div', 'date-chip');
+    chip.innerHTML = `<div class="dow">${PERSIAN_WEEKDAYS[d.getDay()]}</div><div class="dom">${adminDayNumberFor_(d)}</div>`;
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#off-date-scroller .date-chip').forEach((c) => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      offSelectedDate = iso;
+      const b = $('#off-add-btn');
+      b.disabled = false;
+      b.textContent = 'ثبت مرخصی برای این روز';
+    });
+    wrap.appendChild(chip);
+  }
+}
+
+async function loadTimeOff() {
+  buildOffScroller();
+  const wrap = $('#off-list');
+  const r = await api('adminGetTimeOff');
+  if (!r.ok) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = r.items.length ? '' : '<div class="empty-note">مرخصی ثبت‌شده‌ای نیست</div>';
+  r.items.forEach((o) => {
+    const row = el('div', 'list-item');
+    row.innerHTML = `<div class="row"><strong>${escHtml(o.display)}</strong><span style="font-size:12.5px">${o.from ? escHtml(o.from + ' تا ' + o.to) : 'کل روز'}</span></div>${o.note ? `<div style="font-size:12.5px;color:var(--muted)">${escHtml(o.note)}</div>` : ''}<div class="actions"></div>`;
+    const del = el('button', 'small-btn danger', 'حذف');
+    del.addEventListener('click', async () => {
+      if (!confirm('این مرخصی حذف شود؟')) return;
+      await api('adminDeleteTimeOff', { index: o.index });
+      loadTimeOff();
+    });
+    row.querySelector('.actions').appendChild(del);
+    wrap.appendChild(row);
+  });
+}
+
+$('#off-add-btn').addEventListener('click', async () => {
+  if (!offSelectedDate) return;
+  const from = $('#off-from').value, to = $('#off-to').value;
+  const btn = $('#off-add-btn');
+  btn.disabled = true;
+  const r = await api('adminAddTimeOff', { date: offSelectedDate, from, to, note: $('#off-note').value.trim() });
+  btn.disabled = false;
+  if (!r.ok) { toast(r.error || 'خطا'); return; }
+  toast(r.affected ? `ثبت شد ✅ — ${r.affected} نوبت تحت‌تأثیر بود، به ${r.notified} نفر پیام رفت` : 'مرخصی ثبت شد ✅');
+  $('#off-from').value = ''; $('#off-to').value = ''; $('#off-note').value = '';
+  loadTimeOff();
+});
+
+$('#backup-btn').addEventListener('click', async () => {
+  const btn = $('#backup-btn'), st = $('#backup-status');
+  btn.disabled = true;
+  st.textContent = 'در حال پشتیبان‌گیری...';
+  const r = await api('adminBackupNow');
+  btn.disabled = false;
+  st.textContent = r.ok ? '✅ انجام شد: ' + r.name : (r.error || 'خطا؛ ممکنه دسترسی Drive لازم باشه');
+});

@@ -45,7 +45,7 @@
         </div>
         <div style="font-size:13px; color:var(--muted); margin-top:6px;">
           ${b.displayDate || jalaliReadable(b.date)} — ساعت ${b.time}<br>
-          ${Number(b.price).toLocaleString('fa-IR')} تومان
+          ${Number(b.price).toLocaleString('fa-IR')} تومان${Number(b.discountPercent) > 0 && b.discountKind !== 'birthday-released' ? ' — 🎁 ' + b.discountPercent + '٪ تخفیف' + (Number(b.originalPrice) ? ' (مبلغ اصلی ' + Number(b.originalPrice).toLocaleString('fa-IR') + ')' : '') : ''}
         </div>
       `;
       wrap.appendChild(item);

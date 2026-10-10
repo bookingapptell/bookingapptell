@@ -950,8 +950,20 @@ function escHtml(t) {
 async function loadCustomers() {
   const wrap = $('#cust-list');
   wrap.innerHTML = '<div class="empty-note">در حال بارگذاری...</div>';
-  const res = await api('adminGetCustomers');
-  if (!res.ok) { wrap.innerHTML = '<div class="empty-note">خطا در دریافت</div>'; return; }
+  let res;
+  try {
+    res = await api('adminGetCustomers');
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-note">ارتباط با سرور برقرار نشد. اینترنت رو چک کن و دوباره امتحان کن.</div>';
+    return;
+  }
+  if (!res.ok) {
+    const msg = res.error === 'دستور نامعتبر'
+      ? 'سرور هنوز نسخه‌ی جدید رو نداره؛ Code.gs رو جایگزین و «New version» دیپلوی کن.'
+      : (res.error || 'پاسخ نامعتبر');
+    wrap.innerHTML = '<div class="empty-note">خطا در دریافت: ' + escHtml(msg) + '</div>';
+    return;
+  }
   CUSTOMERS = res.customers;
   renderCustomers();
 }

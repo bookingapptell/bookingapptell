@@ -246,7 +246,11 @@ function updatePayBar() {
   if (!ready) { bar.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
   const isPayInPerson = String(state.selectedService.payInPerson).toUpperCase() === 'TRUE';
-  $('#total-amount').textContent = toman(state.selectedService.price);
+  const disc = state.discount;
+  const finalPrice = disc ? Math.round(Number(state.selectedService.price) * (100 - disc.percent) / 100) : Number(state.selectedService.price);
+  $('#total-amount').innerHTML = disc
+    ? `<s style="opacity:.55;font-size:.8em">${toman(state.selectedService.price)}</s> ${toman(finalPrice)}<br><small>🎁 ${disc.label} ${disc.percent}٪</small>`
+    : toman(state.selectedService.price);
   document.querySelector('.pay-bar .total-label').textContent = isPayInPerson ? 'پرداخت حضوری' : 'مبلغ قابل پرداخت';
   $('#submit-btn').textContent = isPayInPerson ? 'ثبت نوبت' : 'پرداخت و ثبت نوبت';
 }
@@ -432,6 +436,7 @@ function enterApp_() {
 // اسم ثبت‌شده‌ی مشتری رو از سرور می‌گیره؛ توی فرم قفل میشه (فقط مدیر می‌تونه عوضش کنه)
 async function loadProfile_() {
   try {
+    api('getMyDiscount', { token: customerToken }).then((d) => { state.discount = d.ok ? d.discount : null; updatePayBar(); }).catch(() => {});
     const r = await api('getMyProfile', { token: customerToken });
     const f = $('#customer-name');
     if (!r.ok || !f) return;

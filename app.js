@@ -426,6 +426,24 @@ function enterApp_() {
   if (phoneField) phoneField.value = customerPhone;
   $('#cust-username-badge').textContent = customerPhone;
   loadServices();
+  loadProfile_();
+}
+
+// اسم ثبت‌شده‌ی مشتری رو از سرور می‌گیره؛ توی فرم قفل میشه (فقط مدیر می‌تونه عوضش کنه)
+async function loadProfile_() {
+  try {
+    const r = await api('getMyProfile', { token: customerToken });
+    const f = $('#customer-name');
+    if (!r.ok || !f) return;
+    if (r.nameSet) {
+      f.value = r.name;
+      f.readOnly = true;
+      f.style.background = 'var(--line)';
+      f.style.color = 'var(--muted)';
+    } else {
+      toast('قبل از رزرو، توی بات تلگرام اسم و فامیلت رو ثبت کن (/start)');
+    }
+  } catch (e) { /* مهم نیست؛ سرور موقع ثبت نوبت دوباره چک می‌کنه */ }
 }
 
 $('#cust-logout-btn').addEventListener('click', () => {

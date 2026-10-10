@@ -31,7 +31,7 @@
       window.location.href = 'index.html';
     });
     const API_BASE = 'https://script.google.com/macros/s/AKfycbzWLPgSboFo7wzKlgFN8az3nehWEVrwX_ud21BzAl1R8cJCQPAR26UAClhMplTAcECb/exec';
-    const STATUS_FA = { paid: 'پرداخت‌شده ✅', confirmed: 'تایید شده (حضوری)', pending: 'در انتظار پرداخت', cancelled: 'لغوشده', failed: 'ناموفق' };
+    const STATUS_FA = { noshow: 'مراجعه نکردی', paid: 'پرداخت‌شده ✅', confirmed: 'تایید شده (حضوری)', pending: 'در انتظار پرداخت', cancelled: 'لغوشده', failed: 'ناموفق' };
     const wrap = document.getElementById('receipts-list');
 
     function renderBooking(b) {
@@ -45,7 +45,7 @@
         </div>
         <div style="font-size:13px; color:var(--muted); margin-top:6px;">
           ${b.displayDate || jalaliReadable(b.date)} — ساعت ${b.time}<br>
-          ${Number(b.price).toLocaleString('fa-IR')} تومان${Number(b.discountPercent) > 0 && b.discountKind !== 'birthday-released' ? ' — 🎁 ' + b.discountPercent + '٪ تخفیف' + (Number(b.originalPrice) ? ' (مبلغ اصلی ' + Number(b.originalPrice).toLocaleString('fa-IR') + ')' : '') : ''}
+          ${Number(b.price).toLocaleString('fa-IR')} تومان${Number(b.deposit) > 0 ? ' (بیعانه ' + Number(b.deposit).toLocaleString('fa-IR') + ')' : ''}${Number(b.discountPercent) > 0 && b.discountKind !== 'birthday-released' ? ' — 🎁 ' + b.discountPercent + '٪ تخفیف' + (Number(b.originalPrice) ? ' (مبلغ اصلی ' + Number(b.originalPrice).toLocaleString('fa-IR') + ')' : '') : ''}
         </div>
       `;
       wrap.appendChild(item);

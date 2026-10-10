@@ -100,6 +100,7 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.classList.add('active');
     $('#tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'customers') loadCustomers();
+    if (btn.dataset.tab === 'stats') loadStats();
   });
 });
 
@@ -119,7 +120,8 @@ async function loadBookings() {
         <span class="badge ${b.status}">${STATUS_FA[b.status] || b.status}</span>
       </div>
       <div style="font-size:13px; color:var(--muted); margin-top:4px;">
-        ${b.serviceName} — ${b.displayDate || b.date} ساعت ${b.time}<br>${b.phone}
+        ${b.serviceName} — ${b.displayDate || b.date} ساعت ${b.time}<br>${b.phone}<br>
+        💰 ${Number(b.price).toLocaleString('fa-IR')} تومان${Number(b.discountPercent) > 0 && b.discountKind !== 'birthday-released' ? ' — 🎁 ' + b.discountPercent + '٪ تخفیف' + (Number(b.originalPrice) ? ' (اصلی ' + Number(b.originalPrice).toLocaleString('fa-IR') + ')' : '') : ''}
       </div>
       <div class="actions"></div>
     `;
@@ -1117,4 +1119,42 @@ if (token) showPanel();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('admin-sw.js', { scope: 'admin.html' }).catch(() => {});
+}
+
+
+// ----------------------------- گزارش و درآمد -----------------------------
+async function loadStats() {
+  const wrap = $('#stats-wrap');
+  wrap.innerHTML = 'در حال بارگذاری...';
+  let r;
+  try { r = await api('adminGetStats'); } catch (e) { r = null; }
+  if (!r || !r.ok) { wrap.innerHTML = 'خطا در دریافت گزارش'; return; }
+  const fa = (n) => Number(n || 0).toLocaleString('fa-IR');
+  const T = (n) => fa(n) + ' تومان';
+  const bars = (items, val, fmt) => {
+    const max = Math.max(1, ...items.map(val));
+    return items.map((i) => `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px">
+      <span style="width:62px;flex:none;color:var(--muted)">${escHtml(i.label || i.name || i.key)}</span>
+      <div style="flex:1;background:var(--line);border-radius:6px;height:14px"><div style="width:${Math.round(val(i) / max * 100)}%;background:var(--gold,#c7a15c);height:100%;border-radius:6px"></div></div>
+      <span style="width:86px;flex:none;text-align:left">${fmt(val(i))}</span></div>`).join('');
+  };
+  const card = (t, body) => `<div class="list-item" style="margin-bottom:12px"><strong>${t}</strong><div style="margin-top:8px">${body}</div></div>`;
+  const delta = (a, b) => b ? ((a >= b ? '▲ ' : '▼ ') + fa(Math.abs(Math.round((a - b) / b * 100))) + '٪ نسبت به ماه قبل') : '';
+  const m = r.month, p = r.prevMonth;
+  const kpi = (l, v, d) => `<div style="flex:1 1 45%;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px"><div style="font-size:11px;color:var(--muted)">${l}</div><div style="font-weight:700;margin:4px 0">${v}</div><div style="font-size:11px;color:var(--muted)">${d || ''}</div></div>`;
+  wrap.innerHTML =
+    `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">` +
+      kpi('درآمد این ماه', T(m.income), delta(m.income, p.income)) +
+      kpi('تعداد نوبت', fa(m.count), delta(m.count, p.count)) +
+      kpi('میانگین هر نوبت', T(m.avg), '') +
+      kpi('مشتری جدید', fa(m.newCustomers), 'لغوشده: ' + fa(m.cancelled)) +
+      kpi('نوبت‌های پیش‌رو', fa(r.upcoming.count), 'درآمد پیش‌بینی: ' + T(r.upcoming.income)) +
+      kpi('کل مشتری‌ها', fa(r.totalCustomers), '') +
+    `</div>` +
+    card('درآمد ۱۴ روز اخیر', bars(r.days, (i) => i.income, fa)) +
+    card('درآمد ۶ ماه اخیر', bars(r.months, (i) => i.income, fa)) +
+    card('پرفروش‌ترین خدمات (۹۰ روز)', r.services.length ? bars(r.services, (i) => i.income, fa) : 'داده‌ای نیست') +
+    card('پرطرفدارترین روزهای هفته', bars(r.weekdays, (i) => i.count, fa)) +
+    card('پرطرفدارترین ساعت‌ها', r.hours.length ? bars(r.hours, (i) => i.count, fa) : 'داده‌ای نیست') +
+    card('مشتری‌های برتر', r.topCustomers.length ? r.topCustomers.map((c, i) => `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span>${fa(i + 1)}. ${escHtml(c.name)} (${fa(c.count)} نوبت)</span><span>${T(c.total)}</span></div>`).join('') : 'داده‌ای نیست');
 }

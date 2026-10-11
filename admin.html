@@ -73,6 +73,10 @@
 
     <!-- محتوای پنل -->
     <div id="panel" class="hidden">
+      <div id="topbar" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:10px 14px; margin:12px 0; font-size:13px;">
+        <span>📅 <strong id="tb-date">...</strong></span>
+        <span id="tb-usd-wrap" style="cursor:pointer;" title="برای رفتن به صفحه‌ی نرخ دلار بزن">💵 دلار: <strong id="tb-usd">...</strong> <span id="tb-usd-extra" style="color:var(--muted); font-size:11.5px;"></span></span>
+      </div>
       <div class="tab-bar" style="flex-wrap:wrap;">
         <button class="tab-btn active" data-tab="bookings">نوبت‌ها</button>
         <button class="tab-btn" data-tab="services">خدمات</button>
@@ -82,6 +86,7 @@
         <button class="tab-btn" data-tab="customers">مشتری‌ها</button>
         <button class="tab-btn" data-tab="week">تقویم</button>
         <button class="tab-btn" data-tab="coupons">کد تخفیف</button>
+        <button class="tab-btn" data-tab="usd">نرخ دلار</button>
         <button class="tab-btn" data-tab="stats">گزارش</button>
         <button class="tab-btn" data-tab="notify">اطلاع‌رسانی</button>
       </div>
@@ -113,6 +118,23 @@
         </div>
         <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px;">🟢 خالی &nbsp; 🔴 نوبت (برای جزئیات بزن) &nbsp; ⚪ مرخصی</div>
         <div id="week-wrap" class="empty-note">در حال بارگذاری...</div>
+      </div>
+
+      <div class="tab-panel" id="tab-usd">
+        <div class="section-title">نرخ لحظه‌ای دلار آزاد</div>
+        <div class="list-item" id="usd-live" style="margin-bottom:14px;">در حال دریافت...</div>
+        <button class="btn btn-block btn-ghost" id="usd-refresh" style="margin-bottom:18px;">🔄 به‌روزرسانی نرخ لحظه‌ای</button>
+
+        <div class="section-title">نرخ دلار برای قیمت خدمات</div>
+        <p style="font-size:12.5px; color:var(--muted); margin-top:-6px; margin-bottom:12px;">این نرخ فقط وقتی «ذخیره» بزنی روی قیمت خدمات دلاری اعمال می‌شود. تا ذخیره نکنی، پایین فقط پیش‌نمایش می‌بینی.</p>
+        <div class="field"><label>نرخ دلار (تومان)</label><input id="usd-rate" placeholder="مثلاً 110000" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+        <button class="small-btn" id="usd-use-live" style="margin-bottom:12px;">استفاده از نرخ لحظه‌ای</button>
+        <div class="field"><label>گرد کردن قیمت تومانی به نزدیک‌ترین</label><select id="usd-round" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:12px; font-family:'Vazirmatn'; background:var(--paper);"><option value="1000">۱٬۰۰۰ تومان</option><option value="10000">۱۰٬۰۰۰ تومان</option></select></div>
+        <button class="btn btn-block" id="usd-save">ذخیره نرخ و اعمال روی خدمات</button>
+        <div id="usd-status" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>
+
+        <div class="section-title" style="margin-top:24px;">پیش‌نمایش قیمت همه‌ی خدمات</div>
+        <div id="usd-table"></div>
       </div>
 
       <div class="tab-panel" id="tab-coupons">
@@ -270,8 +292,6 @@
         <div class="field"><label>درصد تخفیف وفاداری (مثلاً ۱۰)</label><input id="brand-loyalty-percent-input" placeholder="10" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
         <div class="field"><label>درصد تخفیف تولد (۰ یعنی خاموش)</label><input id="brand-bday-percent-input" placeholder="15" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
         <div class="field"><label>تخفیف تولد چند روز قبل و بعد از تولد معتبر باشد؟ (پیش‌فرض ۳)</label><input id="brand-bday-days-input" placeholder="3" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
-        <div class="field"><label>نرخ دلار به تومان (برای خدماتی که قیمت دلاری دارند؛ مثلاً ۱۱۰۰۰۰)</label><input id="brand-usd-rate-input" placeholder="110000" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
-        <div class="field"><label>گرد کردن قیمت تومانی به نزدیک‌ترین</label><select id="brand-usd-round-input" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:12px; font-family:'Vazirmatn'; background:var(--paper);"><option value="1000">۱٬۰۰۰ تومان</option><option value="10000">۱۰٬۰۰۰ تومان</option></select></div>
         <div class="field"><label>بیعانه: چند درصد از مبلغ آنلاین پرداخت شود؟ (۰ یعنی پرداخت کامل)</label><input id="brand-deposit-input" placeholder="30" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
         <div class="field"><label>تخفیف دعوت دوست (درصد، ۰ یعنی خاموش)</label><input id="brand-referral-input" placeholder="10" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
         <div class="field"><label>یادآوری ترمیم: چند روز بعد از نوبت پیام برود؟ (۰ یعنی خاموش، مثلاً ۱۴)</label><input id="brand-refill-input" placeholder="14" dir="ltr" style="text-align:left;" inputmode="numeric"></div>

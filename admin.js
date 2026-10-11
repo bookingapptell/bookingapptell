@@ -255,7 +255,7 @@ async function loadServices() {
     item.innerHTML = `
       <div class="row">
         <strong>${s.name}</strong>
-        <span>${Number(s.price).toLocaleString('fa-IR')} تومان</span>
+        <span>${Number(s.priceUsd) > 0 ? '$' + Number(s.priceUsd) + ' ≈ ' : ''}${Number(s.priceNow || s.price).toLocaleString('fa-IR')} تومان</span>
       </div>
       <div style="font-size:13px; color:var(--muted); margin-top:4px;">
         ${s.duration} دقیقه${payInPerson ? ' · <span style="color:var(--blush-deep);">پرداخت حضوری</span>' : ''}
@@ -265,7 +265,8 @@ async function loadServices() {
       <div class="actions"></div>
       <div class="edit-form hidden" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
         <div class="field"><label>نام خدمت</label><input class="edit-name" value="${s.name}"></div>
-        <div class="field"><label>قیمت (تومان)</label><input class="edit-price" type="number" value="${s.price}"></div>
+        <div class="field"><label>قیمت ثابت (تومان)${Number(s.priceUsd) > 0 ? ' — فعلاً از روی دلار حساب می‌شود' : ''}</label><input class="edit-price" type="number" value="${s.price}"></div>
+        <div class="field"><label>قیمت به دلار (اختیاری؛ خالی = قیمت تومانی ثابت)</label><input class="edit-usd" type="number" step="0.01" dir="ltr" style="text-align:left;" value="${s.priceUsd || ''}"></div>
         <div class="field"><label>مدت زمان (دقیقه)</label><input class="edit-duration" type="number" value="${s.duration}"></div>
         <div class="field">
           <label>دسته‌بندی</label>
@@ -439,17 +440,18 @@ async function loadServices() {
     item.querySelector('.save-edit-btn').addEventListener('click', async () => {
       const name = item.querySelector('.edit-name').value.trim();
       const price = item.querySelector('.edit-price').value;
+      const priceUsd = item.querySelector('.edit-usd').value;
       const duration = item.querySelector('.edit-duration').value;
       const category = item.querySelector('.edit-category').value;
       const staffName = item.querySelector('.edit-staffname').value.trim();
       const locationUrl = normalizeUrl_(item.querySelector('.edit-location').value.trim());
       const payInPersonChecked = item.querySelector('.edit-payinperson').checked;
       const imagePosition = item.querySelector('.edit-image-position').value;
-      if (!name || !price || !duration) { toast('همه فیلدها را پر کن'); return; }
+      if (!name || (!price && !priceUsd) || !duration) { toast('همه فیلدها را پر کن'); return; }
       const btn = item.querySelector('.save-edit-btn');
       btn.disabled = true;
       btn.textContent = 'در حال ذخیره...';
-      await api('adminEditService', { id: s.id, name, price, duration, active: active ? 'true' : 'false', payInPerson: payInPersonChecked ? 'true' : 'false', imageUrl: currentImageUrl, imagePosition, category, staffName, staffImageUrl: currentStaffImageUrl, locationUrl });
+      await api('adminEditService', { id: s.id, name, price, priceUsd, duration, active: active ? 'true' : 'false', payInPerson: payInPersonChecked ? 'true' : 'false', imageUrl: currentImageUrl, imagePosition, category, staffName, staffImageUrl: currentStaffImageUrl, locationUrl });
       toast('قیمت و مشخصات خدمت به‌روزرسانی شد ✅');
       loadServices();
     });
@@ -490,6 +492,7 @@ function setupGalleryButtonEl_(btn, gallery, onPick) {
 $('#add-service-btn').addEventListener('click', async () => {
   const name = $('#new-service-name').value.trim();
   const price = $('#new-service-price').value;
+  const priceUsd = $('#new-service-usd').value;
   const duration = $('#new-service-duration').value;
   const category = $('#new-service-category').value;
   const staffName = $('#new-service-staffname').value.trim();
@@ -498,10 +501,11 @@ $('#add-service-btn').addEventListener('click', async () => {
   const payInPerson = $('#new-service-payinperson').checked;
   const imageUrl = $('#new-service-image-url').value.trim();
   const imagePosition = $('#new-service-image-position').value;
-  if (!name || !price || !duration) { toast('همه فیلدها را پر کن'); return; }
-  await api('adminAddService', { name, price, duration, category, staffName, staffImageUrl, locationUrl, payInPerson: payInPerson ? 'true' : 'false', imageUrl, imagePosition });
+  if (!name || (!price && !priceUsd) || !duration) { toast('همه فیلدها را پر کن'); return; }
+  await api('adminAddService', { name, price, priceUsd, duration, category, staffName, staffImageUrl, locationUrl, payInPerson: payInPerson ? 'true' : 'false', imageUrl, imagePosition });
   $('#new-service-name').value = '';
   $('#new-service-price').value = '';
+  $('#new-service-usd').value = '';
   $('#new-service-duration').value = '';
   $('#new-service-category').value = 'lash';
   $('#new-service-staffname').value = '';
@@ -693,6 +697,8 @@ async function loadBranding() {
   $('#brand-loyalty-percent-input').value = s.loyaltyPercent || '';
   $('#brand-bday-percent-input').value = s.birthdayPercent || '';
   $('#brand-bday-days-input').value = s.birthdayDays || '';
+  $('#brand-usd-rate-input').value = s.usdRate || '';
+  $('#brand-usd-round-input').value = s.usdRound || '1000';
   $('#brand-deposit-input').value = s.depositPercent || '';
   $('#brand-referral-input').value = s.referralPercent || '';
   $('#brand-refill-input').value = s.refillDays || '';
@@ -740,6 +746,8 @@ $('#save-brand-btn').addEventListener('click', async () => {
     loyaltyPercent: $('#brand-loyalty-percent-input').value.trim(),
     birthdayPercent: $('#brand-bday-percent-input').value.trim(),
     birthdayDays: $('#brand-bday-days-input').value.trim(),
+    usdRate: $('#brand-usd-rate-input').value.trim(),
+    usdRound: $('#brand-usd-round-input').value,
     depositPercent: $('#brand-deposit-input').value.trim(),
     referralPercent: $('#brand-referral-input').value.trim(),
     refillDays: $('#brand-refill-input').value.trim(),
@@ -1322,7 +1330,7 @@ $('#manual-toggle').addEventListener('click', async () => {
   buildDateChips_('man-date-scroller', 30, (iso) => { manualDate = iso; });
   if (!$('#man-service').children.length) {
     const r = await api('adminServices');
-    if (r.ok) $('#man-service').innerHTML = r.services.map((s) => `<option value="${escHtml(s.id)}">${escHtml(s.name)} — ${Number(s.price).toLocaleString('fa-IR')}</option>`).join('');
+    if (r.ok) $('#man-service').innerHTML = r.services.map((s) => `<option value="${escHtml(s.id)}">${escHtml(s.name)} — ${Number(s.priceNow || s.price).toLocaleString('fa-IR')}</option>`).join('');
   }
   if (!CUSTOMERS.length) { try { const c = await api('adminGetCustomers'); if (c.ok) CUSTOMERS = c.customers; } catch (e) {} }
   $('#man-customers').innerHTML = CUSTOMERS.map((c) => `<option value="${escHtml(c.phone)}">${escHtml(c.name)}</option>`).join('');

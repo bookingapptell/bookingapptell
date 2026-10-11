@@ -80,12 +80,54 @@
         <button class="tab-btn" data-tab="settings">ساعات کاری</button>
         <button class="tab-btn" data-tab="brand">برندینگ</button>
         <button class="tab-btn" data-tab="customers">مشتری‌ها</button>
+        <button class="tab-btn" data-tab="week">تقویم</button>
+        <button class="tab-btn" data-tab="coupons">کد تخفیف</button>
         <button class="tab-btn" data-tab="stats">گزارش</button>
         <button class="tab-btn" data-tab="notify">اطلاع‌رسانی</button>
       </div>
 
       <div class="tab-panel active" id="tab-bookings">
+        <button class="btn btn-block btn-ghost" id="manual-toggle" style="margin-bottom:12px;">➕ ثبت نوبت دستی (تلفنی / اینستاگرام / حضوری)</button>
+        <div id="manual-form" class="hidden list-item" style="margin-bottom:14px;">
+          <div class="field"><label>شماره موبایل مشتری</label><input id="man-phone" type="tel" list="man-customers" placeholder="09xxxxxxxxx" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+          <datalist id="man-customers"></datalist>
+          <div class="field"><label>نام و نام‌خانوادگی <span id="man-name-hint" style="color:var(--muted);font-size:11.5px;"></span></label><input id="man-name" placeholder="مثلاً سارا احمدی"></div>
+          <div class="field"><label>خدمت</label><select id="man-service" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:12px; font-family:'Vazirmatn'; background:var(--paper);"></select></div>
+          <label style="font-size:13px;">روز</label>
+          <div class="date-scroller" id="man-date-scroller" style="margin-bottom:10px;"></div>
+          <div style="display:flex; gap:8px;">
+            <div class="field" style="flex:1; margin:0;"><label>ساعت</label><input id="man-time" type="time"></div>
+            <div class="field" style="flex:1; margin:0;"><label>مبلغ (اختیاری)</label><input id="man-price" placeholder="پیش‌فرض قیمت خدمت" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+          </div>
+          <button class="btn btn-block" id="man-submit" style="margin-top:12px;">ثبت نوبت</button>
+          <div id="man-status" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>
+        </div>
         <div id="bookings-list"></div>
+      </div>
+
+      <div class="tab-panel" id="tab-week">
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+          <button class="small-btn" id="week-prev">‹ هفته قبل</button>
+          <button class="small-btn" id="week-today" style="flex:1;">این هفته</button>
+          <button class="small-btn" id="week-next">هفته بعد ›</button>
+        </div>
+        <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px;">🟢 خالی &nbsp; 🔴 نوبت (برای جزئیات بزن) &nbsp; ⚪ مرخصی</div>
+        <div id="week-wrap" class="empty-note">در حال بارگذاری...</div>
+      </div>
+
+      <div class="tab-panel" id="tab-coupons">
+        <div class="section-title">کد تخفیف جدید</div>
+        <div class="field"><label>کد (حروف/عدد، مثلاً NOROOZ20)</label><input id="cp-code" dir="ltr" style="text-align:left; text-transform:uppercase;"></div>
+        <div class="field"><label>درصد تخفیف</label><input id="cp-percent" placeholder="20" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+        <div class="field"><label>حداکثر تعداد استفاده (۰ یعنی نامحدود؛ هر مشتری فقط یک‌بار می‌تواند استفاده کند)</label><input id="cp-max" placeholder="50" dir="ltr" style="text-align:left;" inputmode="numeric"></div>
+        <label style="font-size:13px;">تا چه روزی معتبر باشد؟ <span id="cp-until-label" style="color:var(--muted);">(بدون انقضا)</span></label>
+        <div class="date-scroller" id="cp-date-scroller" style="margin-bottom:6px;"></div>
+        <button class="small-btn" id="cp-no-expiry" style="margin-bottom:10px;">بدون تاریخ انقضا</button>
+        <div class="field"><label>یادداشت (اختیاری)</label><input id="cp-note" placeholder="مثلاً کمپین نوروز"></div>
+        <button class="btn btn-block" id="cp-save">ذخیره کد</button>
+        <div id="cp-status" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>
+        <div class="section-title" style="margin-top:22px;">کدهای ساخته‌شده</div>
+        <div id="cp-list"></div>
       </div>
 
       <div class="tab-panel" id="tab-services">
@@ -337,6 +379,21 @@
         </div>
         <button class="btn btn-block" id="broadcast-telegram-btn">ارسال به تلگرام همه</button>
         <div id="broadcast-status" style="font-size:13px; color:var(--muted); margin-top:12px;"></div>
+
+        <div class="section-title" style="margin-top:30px;">📣 پیام زمان‌بندی‌شده</div>
+        <p style="font-size:12px; color:var(--muted); margin-top:-8px; margin-bottom:12px;">روز و ساعت رو انتخاب کن تا خودش ارسال بشه (ممکنه تا یک ساعت دیرتر برسه).</p>
+        <div class="date-scroller" id="sc-date-scroller"></div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <div class="field" style="flex:1; margin:0;"><label>ساعت ارسال</label><input id="sc-time" type="time" value="10:00"></div>
+          <div class="field" style="flex:2; margin:0;"><label>مخاطب</label>
+            <select id="sc-audience" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:12px; font-family:'Vazirmatn'; background:var(--paper);">
+              <option value="all">همه‌ی مشتری‌ها</option><option value="vip">فقط VIP</option>
+              <option value="active">فعال (۶۰ روز اخیر)</option><option value="inactive">غیرفعال (بیش از ۶۰ روز)</option>
+            </select></div>
+        </div>
+        <div class="field" style="margin-top:10px;"><label>متن پیام</label><textarea id="sc-text" rows="3" style="width:100%; border:2px solid var(--line); border-radius:12px; padding:12px; font-family:'Vazirmatn';"></textarea></div>
+        <button class="btn btn-block" id="sc-add" disabled>یه روز رو از بالا انتخاب کن</button>
+        <div id="sc-list" style="margin-top:14px;"></div>
       </div>
     </div>
   </div>

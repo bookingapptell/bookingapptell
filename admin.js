@@ -85,6 +85,7 @@ $('#login-btn').addEventListener('click', async () => {
 async function showPanel() {
   $('#login-box').classList.add('hidden');
   $('#panel').classList.remove('hidden');
+  startTopbar_();
   await loadCategories();
   loadBookings();
   loadServices();
@@ -103,6 +104,7 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     if (btn.dataset.tab === 'stats') loadStats();
     if (btn.dataset.tab === 'settings') loadTimeOff();
     if (btn.dataset.tab === 'week') loadWeek();
+    if (btn.dataset.tab === 'usd') loadUsdTab();
     if (btn.dataset.tab === 'coupons') { buildCouponScroller_(); loadCoupons(); }
     if (btn.dataset.tab === 'notify') { buildScheduledScroller_(); loadScheduled(); }
   });
@@ -697,8 +699,6 @@ async function loadBranding() {
   $('#brand-loyalty-percent-input').value = s.loyaltyPercent || '';
   $('#brand-bday-percent-input').value = s.birthdayPercent || '';
   $('#brand-bday-days-input').value = s.birthdayDays || '';
-  $('#brand-usd-rate-input').value = s.usdRate || '';
-  $('#brand-usd-round-input').value = s.usdRound || '1000';
   $('#brand-deposit-input').value = s.depositPercent || '';
   $('#brand-referral-input').value = s.referralPercent || '';
   $('#brand-refill-input').value = s.refillDays || '';
@@ -746,8 +746,6 @@ $('#save-brand-btn').addEventListener('click', async () => {
     loyaltyPercent: $('#brand-loyalty-percent-input').value.trim(),
     birthdayPercent: $('#brand-bday-percent-input').value.trim(),
     birthdayDays: $('#brand-bday-days-input').value.trim(),
-    usdRate: $('#brand-usd-rate-input').value.trim(),
-    usdRound: $('#brand-usd-round-input').value,
     depositPercent: $('#brand-deposit-input').value.trim(),
     referralPercent: $('#brand-referral-input').value.trim(),
     refillDays: $('#brand-refill-input').value.trim(),
@@ -1004,7 +1002,7 @@ $('#broadcast-telegram-btn').addEventListener('click', async () => {
 
 
 // ----------------------------- مشتری‌ها -----------------------------
-const JALALI_MONTHS_FA = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+var JALALI_MONTHS_FA = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
 const GREG_MONTHS_FA = ['ژانویه', 'فوریه', 'مارس', 'آوریل', 'مه', 'ژوئن', 'ژوئیه', 'اوت', 'سپتامبر', 'اکتبر', 'نوامبر', 'دسامبر'];
 let CUSTOMERS = [];
 
@@ -1486,4 +1484,115 @@ $('#sc-add').addEventListener('click', async () => {
   toast('زمان‌بندی شد ✅');
   $('#sc-text').value = '';
   loadScheduled();
+});
+
+
+// ----------------------------- نوار بالا: تاریخ شمسی و نرخ دلار -----------------------------
+var JALALI_WEEKDAYS_FULL = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'];
+var LIVE_USD = null;
+function faNum_(n) { return Number(n || 0).toLocaleString('fa-IR'); }
+function renderTopDate_() {
+  const d = new Date();
+  const j = toJalali_(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  $('#tb-date').textContent = `${JALALI_WEEKDAYS_FULL[d.getDay()]} ${toPersianDigits_(j.jd)} ${JALALI_MONTHS_FA[j.jm - 1]} ${toPersianDigits_(j.jy)}`;
+}
+async function refreshLiveUsd_(force) {
+  let r;
+  try { r = await api('adminGetDollar', force ? { force: '1' } : {}); } catch (e) { r = null; }
+  if (r && r.ok) {
+    LIVE_USD = r;
+    $('#tb-usd').textContent = faNum_(r.toman) + ' تومان';
+    $('#tb-usd-extra').textContent = r.change ? `${r.dir === 'high' ? '▲' : (r.dir === 'low' ? '▼' : '')} ${toPersianDigits_(r.change)}٪` : '';
+  } else {
+    $('#tb-usd').textContent = 'در دسترس نیست';
+    $('#tb-usd-extra').textContent = '';
+  }
+  return r;
+}
+var topbarTimer = null;
+function startTopbar_() {
+  renderTopDate_();
+  refreshLiveUsd_(false);
+  if (topbarTimer) return;
+  topbarTimer = setInterval(() => { renderTopDate_(); refreshLiveUsd_(false); }, 5 * 60 * 1000);
+  $('#tb-usd-wrap').addEventListener('click', () => {
+    document.querySelector('.tab-btn[data-tab="usd"]').click();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+// ----------------------------- تب نرخ دلار -----------------------------
+let USD_SERVICES = [];
+let USD_SAVED_RATE = 0;
+function usdPrice_(s, rate, step) {
+  const usd = Number(s.priceUsd) || 0;
+  if (usd > 0 && rate > 0) return Math.round(usd * rate / step) * step;
+  return Number(s.price);
+}
+function renderUsdLive_() {
+  const box = $('#usd-live');
+  if (!LIVE_USD) { box.innerHTML = '<span style="color:var(--muted)">نرخ لحظه‌ای الان در دسترس نیست. نرخ رو دستی وارد کن.</span>'; return; }
+  box.innerHTML = `<div class="row"><strong style="font-size:20px">${faNum_(LIVE_USD.toman)} تومان</strong><span style="font-size:12.5px">${LIVE_USD.change ? (LIVE_USD.dir === 'high' ? '▲ ' : (LIVE_USD.dir === 'low' ? '▼ ' : '')) + toPersianDigits_(LIVE_USD.change) + '٪' : ''}</span></div>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px">بیشترین امروز: ${faNum_(LIVE_USD.high)} · کمترین: ${faNum_(LIVE_USD.low)}<br>منبع: ${escHtml(LIVE_USD.source)} · ${escHtml(LIVE_USD.time)}</div>`;
+}
+function renderUsdTable_() {
+  const rate = Number($('#usd-rate').value.replace(/[^0-9]/g, '')) || 0;
+  const step = Number($('#usd-round').value) || 1000;
+  const wrap = $('#usd-table');
+  if (!USD_SERVICES.length) { wrap.innerHTML = '<div class="empty-note">خدمتی ثبت نشده</div>'; return; }
+  wrap.innerHTML = '';
+  USD_SERVICES.forEach((s) => {
+    const usd = Number(s.priceUsd) || 0;
+    const row = el('div', 'list-item');
+    if (usd > 0) {
+      const cur = Number(s.priceNow);
+      const nw = usdPrice_(s, rate, step);
+      const diff = nw - cur;
+      const dtxt = !rate ? '' : (diff === 0 ? 'بدون تغییر' : (diff > 0 ? '▲ ' : '▼ ') + faNum_(Math.abs(diff)) + ' تومان');
+      row.innerHTML = `<div class="row"><strong>${escHtml(s.name)}</strong><span>$${usd}</span></div>
+        <div style="font-size:13px;margin-top:6px;display:flex;justify-content:space-between;gap:8px"><span style="color:var(--muted)">فعلی: ${faNum_(cur)}</span><strong>${rate ? 'با نرخ جدید: ' + faNum_(nw) + ' تومان' : ''}</strong></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${dtxt}</div>`;
+    } else {
+      row.innerHTML = `<div class="row"><strong>${escHtml(s.name)}</strong><span>${faNum_(s.price)} تومان</span></div><div style="font-size:12px;color:var(--muted);margin-top:4px">قیمت ثابت تومانی (دلاری نیست)</div>`;
+      row.style.opacity = '.75';
+    }
+    wrap.appendChild(row);
+  });
+}
+async function loadUsdTab() {
+  renderUsdLive_();
+  const [sv, st] = await Promise.all([api('adminServices'), api('adminGetSettings')]);
+  if (sv.ok) USD_SERVICES = sv.services;
+  const s = st.ok ? st.settings : {};
+  USD_SAVED_RATE = Number(s.usdRate) || 0;
+  $('#usd-rate').value = USD_SAVED_RATE || '';
+  $('#usd-round').value = s.usdRound || '1000';
+  $('#usd-status').textContent = USD_SAVED_RATE ? 'نرخ ذخیره‌شده‌ی فعلی: ' + faNum_(USD_SAVED_RATE) + ' تومان' : 'هنوز نرخی ذخیره نشده.';
+  renderUsdTable_();
+  refreshLiveUsd_(false).then(renderUsdLive_);
+}
+$('#usd-rate').addEventListener('input', renderUsdTable_);
+$('#usd-round').addEventListener('change', renderUsdTable_);
+$('#usd-refresh').addEventListener('click', async () => {
+  const b = $('#usd-refresh');
+  b.disabled = true;
+  await refreshLiveUsd_(true);
+  renderUsdLive_();
+  b.disabled = false;
+});
+$('#usd-use-live').addEventListener('click', () => {
+  if (!LIVE_USD) { toast('نرخ لحظه‌ای در دسترس نیست'); return; }
+  $('#usd-rate').value = LIVE_USD.toman;
+  renderUsdTable_();
+});
+$('#usd-save').addEventListener('click', async () => {
+  const rate = $('#usd-rate').value.replace(/[^0-9]/g, '');
+  if (!rate) { toast('نرخ رو وارد کن'); return; }
+  const btn = $('#usd-save');
+  btn.disabled = true;
+  const r = await api('adminSaveSettings', { usdRate: rate, usdRound: $('#usd-round').value });
+  btn.disabled = false;
+  if (!r.ok) { toast(r.error || 'خطا'); return; }
+  toast('نرخ ذخیره شد و روی خدمات اعمال شد ✅');
+  loadUsdTab();
 });

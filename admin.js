@@ -102,6 +102,9 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     if (btn.dataset.tab === 'customers') loadCustomers();
     if (btn.dataset.tab === 'stats') loadStats();
     if (btn.dataset.tab === 'settings') loadTimeOff();
+    if (btn.dataset.tab === 'week') loadWeek();
+    if (btn.dataset.tab === 'coupons') { buildCouponScroller_(); loadCoupons(); }
+    if (btn.dataset.tab === 'notify') { buildScheduledScroller_(); loadScheduled(); }
   });
 });
 
@@ -121,7 +124,7 @@ async function loadBookings() {
         <span class="badge ${b.status}">${STATUS_FA[b.status] || b.status}</span>
       </div>
       <div style="font-size:13px; color:var(--muted); margin-top:4px;">
-        ${b.serviceName} — ${b.displayDate || b.date} ساعت ${b.time}<br>${b.phone}<br>
+        ${b.serviceName} — ${b.displayDate || b.date} ساعت ${b.time}${b.source === 'manual' ? ' ✍️ دستی' : ''}<br>${b.phone}<br>
         💰 ${Number(b.price).toLocaleString('fa-IR')} تومان${Number(b.discountPercent) > 0 && b.discountKind !== 'birthday-released' ? ' — 🎁 ' + b.discountPercent + '٪ تخفیف' + (Number(b.originalPrice) ? ' (اصلی ' + Number(b.originalPrice).toLocaleString('fa-IR') + ')' : '') : ''}
       </div>
       <div class="actions"></div>
@@ -131,6 +134,26 @@ async function loadBookings() {
       dl.style.cssText = 'font-size:12.5px; color:var(--muted); margin-top:4px;';
       dl.textContent = `بیعانه: ${Number(b.deposit).toLocaleString('fa-IR')} تومان — باقی‌مانده حضوری: ${(Number(b.price) - Number(b.deposit)).toLocaleString('fa-IR')} تومان`;
       item.insertBefore(dl, item.querySelector('.actions'));
+    }
+    if (b.refundStatus) {
+      const dl2 = document.createElement('div');
+      dl2.style.cssText = 'font-size:12.5px; margin-top:4px;';
+      const paid2 = Number(b.deposit) > 0 ? Number(b.deposit) : Number(b.price);
+      if (b.refundStatus === 'due') {
+        dl2.style.color = '#b3261e';
+        dl2.textContent = `⚠️ ${paid2.toLocaleString('fa-IR')} تومان باید به مشتری برگردانده شود`;
+        item.insertBefore(dl2, item.querySelector('.actions'));
+        const ok = el('button', 'small-btn', 'برگردوندم ✅');
+        ok.addEventListener('click', async () => { await api('adminSetRefund', { id: b.id, status: 'done' }); loadBookings(); });
+        const keep = el('button', 'small-btn danger', 'سوخت 🔥');
+        keep.addEventListener('click', async () => { await api('adminSetRefund', { id: b.id, status: 'kept' }); loadBookings(); });
+        item.querySelector('.actions').appendChild(ok);
+        item.querySelector('.actions').appendChild(keep);
+      } else {
+        dl2.style.color = 'var(--muted)';
+        dl2.textContent = b.refundStatus === 'done' ? '↩️ مبلغ پرداختی به مشتری برگردانده شد' : '🔥 مبلغ پرداختی برنگردانده شد (سوخت)';
+        item.insertBefore(dl2, item.querySelector('.actions'));
+      }
     }
     if ((b.status === 'paid' || b.status === 'confirmed') && `${b.date} ${b.time}` < new Date().toLocaleString('sv-SE').slice(0, 16)) {
       const nsBtn = el('button', 'small-btn danger', 'نیامد 🚫');
@@ -146,7 +169,14 @@ async function loadBookings() {
       const cancelBtn = el('button', 'small-btn danger', 'لغو نوبت');
       cancelBtn.addEventListener('click', async () => {
         if (!confirm('لغو این نوبت؟')) return;
-        await api('adminCancelBooking', { id: b.id });
+        let refund = '';
+        if (b.status === 'paid') {
+          const paid = Number(b.deposit) > 0 ? Number(b.deposit) : Number(b.price);
+          const ans = prompt(`مشتری ${paid.toLocaleString('fa-IR')} تومان آنلاین پرداخته. چی‌کار کنیم؟\n۱ = به مشتری برگردوندم\n۲ = برنمی‌گردونم (سوخت)\n۳ = بعداً برمی‌گردونم`, '3');
+          if (ans === null) return;
+          refund = String(ans).trim() === '1' ? 'done' : (String(ans).trim() === '2' ? 'kept' : 'due');
+        }
+        await api('adminCancelBooking', { id: b.id, refund });
         loadBookings();
       });
       item.querySelector('.actions').appendChild(cancelBtn);
@@ -1260,4 +1290,192 @@ $('#backup-btn').addEventListener('click', async () => {
   const r = await api('adminBackupNow');
   btn.disabled = false;
   st.textContent = r.ok ? '✅ انجام شد: ' + r.name : (r.error || 'خطا؛ ممکنه دسترسی Drive لازم باشه');
+});
+
+
+// ----------------------------- کمک: انتخاب روز -----------------------------
+function buildDateChips_(wrapId, count, onPick) {
+  const wrap = $('#' + wrapId);
+  if (!wrap || wrap.children.length) return;
+  const today = new Date();
+  for (let i = 0; i < count; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const iso = toLocalDateStr_(d);
+    const chip = el('div', 'date-chip');
+    chip.innerHTML = `<div class="dow">${PERSIAN_WEEKDAYS[d.getDay()]}</div><div class="dom">${adminDayNumberFor_(d)}</div>`;
+    chip.addEventListener('click', () => {
+      wrap.querySelectorAll('.date-chip').forEach((c) => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      onPick(iso);
+    });
+    wrap.appendChild(chip);
+  }
+}
+
+// ----------------------------- ثبت نوبت دستی -----------------------------
+let manualDate = '';
+$('#manual-toggle').addEventListener('click', async () => {
+  const f = $('#manual-form');
+  f.classList.toggle('hidden');
+  if (f.classList.contains('hidden')) return;
+  buildDateChips_('man-date-scroller', 30, (iso) => { manualDate = iso; });
+  if (!$('#man-service').children.length) {
+    const r = await api('adminServices');
+    if (r.ok) $('#man-service').innerHTML = r.services.map((s) => `<option value="${escHtml(s.id)}">${escHtml(s.name)} — ${Number(s.price).toLocaleString('fa-IR')}</option>`).join('');
+  }
+  if (!CUSTOMERS.length) { try { const c = await api('adminGetCustomers'); if (c.ok) CUSTOMERS = c.customers; } catch (e) {} }
+  $('#man-customers').innerHTML = CUSTOMERS.map((c) => `<option value="${escHtml(c.phone)}">${escHtml(c.name)}</option>`).join('');
+});
+$('#man-phone').addEventListener('input', () => {
+  const c = CUSTOMERS.find((x) => x.phone === $('#man-phone').value.trim());
+  const nm = $('#man-name');
+  if (c && c.nameSet) { nm.value = c.name; nm.readOnly = true; $('#man-name-hint').textContent = '(مشتری ثبت‌شده)'; }
+  else { if (nm.readOnly) nm.value = ''; nm.readOnly = false; $('#man-name-hint').textContent = ''; }
+});
+$('#man-submit').addEventListener('click', async () => {
+  const st = $('#man-status');
+  const phone = $('#man-phone').value.trim(), name = $('#man-name').value.trim(), time = $('#man-time').value;
+  if (!/^09\d{9}$/.test(phone)) { st.textContent = 'شماره موبایل رو درست بنویس'; return; }
+  if (!name) { st.textContent = 'اسم مشتری رو بنویس'; return; }
+  if (!manualDate) { st.textContent = 'روز رو انتخاب کن'; return; }
+  if (!time) { st.textContent = 'ساعت رو انتخاب کن'; return; }
+  const btn = $('#man-submit');
+  btn.disabled = true;
+  const r = await api('adminManualBooking', { phone, name, serviceId: $('#man-service').value, date: manualDate, time, price: $('#man-price').value.trim() });
+  btn.disabled = false;
+  if (!r.ok) { st.textContent = r.error || 'خطا'; return; }
+  st.textContent = '';
+  toast('نوبت ثبت شد ✅');
+  $('#man-phone').value = ''; $('#man-name').value = ''; $('#man-price').value = ''; $('#man-time').value = '';
+  $('#manual-form').classList.add('hidden');
+  loadBookings();
+});
+
+// ----------------------------- تقویم هفتگی -----------------------------
+let weekStart = '';
+function addDaysIso_(iso, n) {
+  const p = iso.split('-').map(Number);
+  return toLocalDateStr_(new Date(p[0], p[1] - 1, p[2] + n));
+}
+async function loadWeek() {
+  if (!weekStart) weekStart = toLocalDateStr_(new Date());
+  const wrap = $('#week-wrap');
+  wrap.innerHTML = 'در حال بارگذاری...';
+  let r;
+  try { r = await api('adminGetWeek', { start: weekStart }); } catch (e) { r = null; }
+  if (!r || !r.ok) { wrap.innerHTML = 'خطا در دریافت تقویم'; return; }
+  wrap.innerHTML = '';
+  r.days.forEach((d) => {
+    const card = el('div', 'list-item');
+    card.style.marginBottom = '10px';
+    const chips = [];
+    d.bookings.forEach((b) => {
+      chips.push({ t: b.time, html: `<span class="wk-chip wk-b" data-id="${b.id}">🔴 ${escHtml(b.time)} ${escHtml(b.name)}${b.status === 'pending' ? ' ⏳' : ''}</span>` });
+    });
+    d.open.forEach((t) => {
+      const m = toMin_(t);
+      const busy = d.bookings.some((b) => m >= toMin_(b.time) && m < toMin_(b.time) + b.duration);
+      const off = d.off.some((o) => !o.from || (m >= toMin_(o.from) && m < toMin_(o.to)));
+      if (off) chips.push({ t, html: `<span class="wk-chip wk-o">⚪ ${escHtml(t)}</span>` });
+      else if (!busy) chips.push({ t, html: `<span class="wk-chip wk-f">🟢 ${escHtml(t)}</span>` });
+    });
+    chips.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+    const offNote = d.off.length ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">🏖 مرخصی: ${d.off.map((o) => escHtml(o.from ? o.from + '–' + o.to : 'کل روز') + (o.note ? ' (' + escHtml(o.note) + ')' : '')).join('، ')}</div>` : '';
+    card.innerHTML = `<div class="row"><strong>${PERSIAN_WEEKDAYS[d.weekday]} ${escHtml(d.display)}</strong><span style="font-size:12px;color:var(--muted)">${d.bookings.length} نوبت</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${chips.length ? chips.map((c) => c.html).join('') : '<span style="font-size:12.5px;color:var(--muted)">روز باز نیست</span>'}</div>${offNote}`;
+    card.querySelectorAll('.wk-b').forEach((n) => n.addEventListener('click', () => {
+      const b = d.bookings.find((x) => String(x.id) === n.dataset.id);
+      if (b) alert(`${b.name}\n${b.phone}\n${b.service}\nساعت ${b.time} (${b.duration} دقیقه)\nمبلغ: ${Number(b.price).toLocaleString('fa-IR')} تومان`);
+    }));
+    wrap.appendChild(card);
+  });
+}
+function toMin_(t) { const p = String(t).split(':'); return Number(p[0]) * 60 + Number(p[1]); }
+$('#week-prev').addEventListener('click', () => { weekStart = addDaysIso_(weekStart || toLocalDateStr_(new Date()), -7); loadWeek(); });
+$('#week-next').addEventListener('click', () => { weekStart = addDaysIso_(weekStart || toLocalDateStr_(new Date()), 7); loadWeek(); });
+$('#week-today').addEventListener('click', () => { weekStart = toLocalDateStr_(new Date()); loadWeek(); });
+(function () {
+  const st = document.createElement('style');
+  st.textContent = '.wk-chip{font-size:12px;padding:5px 9px;border-radius:10px;border:1px solid var(--line);background:var(--paper)} .wk-b{cursor:pointer;border-color:#e3a7a7} .wk-f{border-color:#a8d5ae} .wk-o{color:var(--muted)}';
+  document.head.appendChild(st);
+})();
+
+// ----------------------------- کد تخفیف -----------------------------
+let cpUntil = '';
+function buildCouponScroller_() {
+  buildDateChips_('cp-date-scroller', 90, (iso) => { cpUntil = iso; $('#cp-until-label').textContent = '(تا ' + iso + ')'; });
+}
+$('#cp-no-expiry').addEventListener('click', () => {
+  cpUntil = '';
+  $('#cp-until-label').textContent = '(بدون انقضا)';
+  document.querySelectorAll('#cp-date-scroller .date-chip').forEach((c) => c.classList.remove('selected'));
+});
+async function loadCoupons() {
+  const wrap = $('#cp-list');
+  const r = await api('adminGetCoupons');
+  if (!r.ok) { wrap.innerHTML = '<div class="empty-note">خطا در دریافت</div>'; return; }
+  wrap.innerHTML = r.coupons.length ? '' : '<div class="empty-note">هنوز کدی نساخته‌ای</div>';
+  r.coupons.forEach((c) => {
+    const item = el('div', 'list-item');
+    const exp = c.validUntil ? (c.expired ? '⛔ منقضی (' + escHtml(c.validUntilDisplay) + ')' : 'تا ' + escHtml(c.validUntilDisplay)) : 'بدون انقضا';
+    item.innerHTML = `<div class="row"><strong dir="ltr">${escHtml(c.code)}</strong><span>${c.percent}٪ ${c.active ? '' : '(غیرفعال)'}</span></div>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:4px">${exp} · استفاده: ${c.used}${c.maxUses ? ' از ' + c.maxUses : ' (نامحدود)'}${c.note ? ' · ' + escHtml(c.note) : ''}</div><div class="actions"></div>`;
+    const tog = el('button', 'small-btn', c.active ? 'غیرفعال کن' : 'فعال کن');
+    tog.addEventListener('click', async () => {
+      await api('adminSaveCoupon', { code: c.code, percent: c.percent, validUntil: c.validUntil, maxUses: c.maxUses, note: c.note, active: c.active ? '0' : '1' });
+      loadCoupons();
+    });
+    const del = el('button', 'small-btn danger', 'حذف');
+    del.addEventListener('click', async () => { if (!confirm('این کد حذف شود؟')) return; await api('adminDeleteCoupon', { code: c.code }); loadCoupons(); });
+    item.querySelector('.actions').appendChild(tog);
+    item.querySelector('.actions').appendChild(del);
+    wrap.appendChild(item);
+  });
+}
+$('#cp-save').addEventListener('click', async () => {
+  const st = $('#cp-status');
+  const btn = $('#cp-save');
+  btn.disabled = true;
+  const r = await api('adminSaveCoupon', { code: $('#cp-code').value.trim(), percent: $('#cp-percent').value.trim(), maxUses: $('#cp-max').value.trim(), validUntil: cpUntil, note: $('#cp-note').value.trim() });
+  btn.disabled = false;
+  if (!r.ok) { st.textContent = r.error || 'خطا'; return; }
+  st.textContent = 'ذخیره شد ✅';
+  $('#cp-code').value = ''; $('#cp-percent').value = ''; $('#cp-max').value = ''; $('#cp-note').value = '';
+  loadCoupons();
+});
+
+// ----------------------------- پیام زمان‌بندی‌شده -----------------------------
+let scDate = '';
+function buildScheduledScroller_() {
+  buildDateChips_('sc-date-scroller', 30, (iso) => { scDate = iso; const b = $('#sc-add'); b.disabled = false; b.textContent = 'زمان‌بندی ارسال'; });
+}
+async function loadScheduled() {
+  const wrap = $('#sc-list');
+  const r = await api('adminGetScheduled');
+  if (!r.ok) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = r.items.length ? '' : '<div class="empty-note">پیام زمان‌بندی‌شده‌ای نیست</div>';
+  r.items.forEach((i) => {
+    const item = el('div', 'list-item');
+    const stl = i.status === 'sent' ? `✅ ارسال شد به ${i.sentCount} نفر` : (i.status === 'sending' ? '⏳ در حال ارسال' : '🕒 در انتظار ارسال');
+    item.innerHTML = `<div class="row"><strong>${escHtml(i.display)}</strong><span style="font-size:12px">${stl}</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${escHtml(i.audienceLabel)}</div>
+      <div style="font-size:13px;margin-top:6px;white-space:pre-wrap">${escHtml(i.text)}</div><div class="actions"></div>`;
+    if (i.status === 'pending') {
+      const del = el('button', 'small-btn danger', 'لغو');
+      del.addEventListener('click', async () => { if (!confirm('این پیام لغو شود؟')) return; await api('adminDeleteScheduled', { id: i.id }); loadScheduled(); });
+      item.querySelector('.actions').appendChild(del);
+    }
+    wrap.appendChild(item);
+  });
+}
+$('#sc-add').addEventListener('click', async () => {
+  const btn = $('#sc-add');
+  btn.disabled = true;
+  const r = await api('adminAddScheduled', { date: scDate, time: $('#sc-time').value, audience: $('#sc-audience').value, text: $('#sc-text').value.trim() });
+  btn.disabled = false;
+  if (!r.ok) { toast(r.error || 'خطا'); return; }
+  toast('زمان‌بندی شد ✅');
+  $('#sc-text').value = '';
+  loadScheduled();
 });

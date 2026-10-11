@@ -85,7 +85,7 @@ $('#login-btn').addEventListener('click', async () => {
 async function showPanel() {
   $('#login-box').classList.add('hidden');
   $('#panel').classList.remove('hidden');
-  startTopbar_();
+  try { startTopbar_(); } catch (e) { console.error(e); }
   await loadCategories();
   loadBookings();
   loadServices();
@@ -1187,7 +1187,8 @@ $('#cust-bulk-btn').addEventListener('click', async () => {
 });
 
 // ----------------------------- init -----------------------------
-if (token) showPanel();
+// کمی دیرتر اجرا میشه تا کل فایل (همه‌ی تعریف‌های پایین) آماده باشه
+if (token) setTimeout(showPanel, 0);
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('admin-sw.js', { scope: 'admin.html' }).catch(() => {});
@@ -1490,15 +1491,40 @@ $('#sc-add').addEventListener('click', async () => {
 // ----------------------------- نوار بالا: تاریخ شمسی و نرخ دلار -----------------------------
 var JALALI_WEEKDAYS_FULL = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'];
 var LIVE_USD = null;
+var LIVE_USD_ERR = '';
 function faNum_(n) { return Number(n || 0).toLocaleString('fa-IR'); }
 function renderTopDate_() {
   const d = new Date();
   const j = toJalali_(d.getFullYear(), d.getMonth() + 1, d.getDate());
-  $('#tb-date').textContent = `${JALALI_WEEKDAYS_FULL[d.getDay()]} ${toPersianDigits_(j.jd)} ${JALALI_MONTHS_FA[j.jm - 1]} ${toPersianDigits_(j.jy)}`;
+  const wd = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'];
+  const mo = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+  $('#tb-date').textContent = `${wd[d.getDay()]} ${toPersianDigits_(j.jd)} ${mo[j.jm - 1]} ${toPersianDigits_(j.jy)}`;
+}
+// اگه سرور نتونست نرخ رو بگیره، از خود مرورگر امتحان می‌کنیم
+async function fetchUsdInBrowser_() {
+  const urls = ['https://call4.tgju.org/ajax.json', 'https://call.tgju.org/ajax.json'];
+  for (const u of urls) {
+    try {
+      const ctl = new AbortController();
+      const tm = setTimeout(() => ctl.abort(), 8000);
+      const res = await fetch(u, { signal: ctl.signal });
+      clearTimeout(tm);
+      const d = await res.json();
+      const o = d && d.current && d.current.price_dollar_rl;
+      const num = (v) => Number(String(v == null ? '' : v).replace(/[۰-۹]/g, (c) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[^0-9]/g, '')) || 0;
+      const rial = o ? num(o.p) : 0;
+      if (rial > 0) return { ok: true, toman: Math.round(rial / 10), high: Math.round(num(o.h) / 10), low: Math.round(num(o.l) / 10), change: Number(o.dp) || 0, dir: String(o.dt || ''), time: String(o.t || ''), source: 'tgju.org (از مرورگر)' };
+    } catch (e) { /* بعدی */ }
+  }
+  return null;
 }
 async function refreshLiveUsd_(force) {
   let r;
-  try { r = await api('adminGetDollar', force ? { force: '1' } : {}); } catch (e) { r = null; }
+  try {
+    r = await Promise.race([api('adminGetDollar', force ? { force: '1' } : {}), new Promise((res) => setTimeout(() => res(null), 25000))]);
+  } catch (e) { r = null; }
+  LIVE_USD_ERR = (r && r.error) || (r ? '' : 'پاسخی از سرور نیومد');
+  if (!(r && r.ok)) r = await fetchUsdInBrowser_();
   if (r && r.ok) {
     LIVE_USD = r;
     $('#tb-usd').textContent = faNum_(r.toman) + ' تومان';
@@ -1531,7 +1557,7 @@ function usdPrice_(s, rate, step) {
 }
 function renderUsdLive_() {
   const box = $('#usd-live');
-  if (!LIVE_USD) { box.innerHTML = '<span style="color:var(--muted)">نرخ لحظه‌ای الان در دسترس نیست. نرخ رو دستی وارد کن.</span>'; return; }
+  if (!LIVE_USD) { box.innerHTML = '<span style="color:var(--muted)">نرخ لحظه‌ای الان در دسترس نیست. نرخ رو دستی وارد کن.' + (LIVE_USD_ERR ? '<br><small>' + escHtml(LIVE_USD_ERR) + '</small>' : '') + '</span>'; return; }
   box.innerHTML = `<div class="row"><strong style="font-size:20px">${faNum_(LIVE_USD.toman)} تومان</strong><span style="font-size:12.5px">${LIVE_USD.change ? (LIVE_USD.dir === 'high' ? '▲ ' : (LIVE_USD.dir === 'low' ? '▼ ' : '')) + toPersianDigits_(LIVE_USD.change) + '٪' : ''}</span></div>
     <div style="font-size:12px;color:var(--muted);margin-top:6px">بیشترین امروز: ${faNum_(LIVE_USD.high)} · کمترین: ${faNum_(LIVE_USD.low)}<br>منبع: ${escHtml(LIVE_USD.source)} · ${escHtml(LIVE_USD.time)}</div>`;
 }
